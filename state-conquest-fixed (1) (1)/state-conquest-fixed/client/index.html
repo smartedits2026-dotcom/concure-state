@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>State Conquest</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height:100%; background:#0d1117; color:#fff; font-family: -apple-system, Arial, sans-serif; overflow:hidden; }
+  #menu { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:16px; padding:20px; text-align:center; }
+  #menu h1 { font-size:28px; margin-bottom:8px; }
+  #menu p { color:#8b949e; font-size:14px; max-width:320px; }
+  button {
+    background:#238636; color:#fff; border:none; padding:14px 28px; font-size:16px;
+    border-radius:10px; cursor:pointer; width:260px;
+  }
+  button.secondary { background:#30363d; }
+  #status { color:#8b949e; font-size:14px; }
+  #game { display:none; height:100%; flex-direction:column; }
+  #hud {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; background:#161b22; font-size:14px;
+  }
+  #hud .legend { display:flex; gap:10px; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:4px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  canvas { flex:1; width:100%; touch-action:none; }
+  #banner {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.85); padding:24px 32px; border-radius:14px;
+    text-align:center; display:none; z-index:10;
+  }
+  #banner h2 { margin-bottom:12px; }
+
+  /* --- Auth screen --- */
+  #authScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:14px; padding:20px; text-align:center; }
+  #authScreen h1 { font-size:26px; margin-bottom:4px; }
+  .authField {
+    width:260px; padding:12px 14px; border-radius:8px; border:1px solid #30363d;
+    background:#0d1117; color:#fff; font-size:15px;
+  }
+  #authError { color:#f85149; font-size:13px; min-height:16px; }
+  #authSubmitBtn { margin-top:4px; }
+  #signOutBtn { background:#30363d; width:auto; padding:8px 16px; font-size:13px; }
+
+  /* --- Profile bar on menu --- */
+  #profileBar {
+    display:flex; align-items:center; gap:10px; background:#161b22;
+    padding:8px 14px; border-radius:10px; font-size:14px; margin-bottom:4px;
+  }
+  #profileStats { color:#8b949e; font-size:12px; }
+
+  /* --- Leaderboard --- */
+  #leaderboardScreen { display:none; flex-direction:column; height:100%; padding:16px; }
+  #leaderboardScreen h1 { font-size:22px; margin-bottom:14px; text-align:center; }
+  #leaderboardList { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .lb-row {
+    display:flex; justify-content:space-between; align-items:center;
+    background:#161b22; padding:10px 14px; border-radius:8px; font-size:14px;
+  }
+  .lb-rank { color:#8b949e; width:28px; }
+  .lb-name { flex:1; text-align:left; padding-left:8px; }
+  .lb-wins { color:#2ecc71; font-weight:bold; }
+  #backFromLbBtn { margin-top:14px; }
+</style>
+</head>
+<body>
+
+<div id="debugBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:999; background:#f85149; color:#fff; font-size:13px; padding:10px 14px; max-height:40vh; overflow:auto; white-space:pre-wrap;"></div>
+
+<div id="authScreen">
+  <h1>⚔️ State Conquest</h1>
+  <p style="color:#8b949e;font-size:14px;max-width:320px;">Choose a player name to save your stats and climb the leaderboard.</p>
+  <input id="authDisplayName" class="authField" type="text" placeholder="Player name" maxlength="20" />
+  <div id="authError"></div>
+  <button id="authSubmitBtn">Continue</button>
+</div>
+
+<div id="menu" style="display:none;">
+  <h1>⚔️ State Conquest</h1>
+  <p>Capture territories, grow your army, and take over the map. Play solo against bots, or online 1-4 players (free-for-all — allies just agree not to attack each other).</p>
+  <div id="profileBar">
+    <span id="profileName"></span>
+    <span id="profileStats"></span>
+  </div>
+  <button id="soloBtn">Play Solo (vs Bots)</button>
+  <button id="onlineBtn" class="secondary">Play Online (1-4 Players)</button>
+  <button id="leaderboardBtn" class="secondary">🏆 Leaderboard</button>
+  <button id="signOutBtn">Change Name</button>
+  <div id="status"></div>
+</div>
+
+<div id="leaderboardScreen">
+  <h1>🏆 Leaderboard</h1>
+  <div id="leaderboardList"></div>
+  <button id="backFromLbBtn" class="secondary">Back</button>
+</div>
+
+<div id="game">
+  <div id="hud">
+    <div id="turnInfo">Tap your territory, then an adjacent one to attack/reinforce</div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <canvas id="board"></canvas>
+</div>
+
+<div id="banner">
+  <h2 id="bannerText"></h2>
+  <button id="playAgainBtn">Play Again</button>
+</div>
+
+<script>
+// ---- DEBUG / ERROR VISIBILITY ----
+// Any uncaught error anywhere on the page shows up here on screen instead
+// of silently killing the rest of the script (which is what makes buttons
+// "stop working" with no clue why).
+(function () {
+  const banner = document.getElementById("debugBanner");
+  function show(msg) {
+    banner.style.display = "block";
+    banner.textContent += (banner.textContent ? "\n\n" : "") + msg;
+  }
+  window.addEventListener("error", (e) => {
+    show("Script error: " + e.message + (e.filename ? "\n(" + e.filename + ":" + e.lineno + ")" : ""));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    show("Unhandled promise error: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+  if (location.protocol === "file:") {
+    show("Heads up: you're opening this file directly (file://). Some things (Firebase auth, CDN scripts) behave unreliably this way. Serve it over http:// instead - e.g. run `npx serve .` or `python3 -m http.server` in the client folder, then open http://localhost:PORT/index.html.");
+  }
+})();
+</script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+// ---- DOM refs + button wiring FIRST ----
+// (deliberately done before Firebase init: if Firebase throws, buttons still work)
+let currentProfile = null; // { playerId, displayName, wins, gamesPlayed }
+
+const authScreen = document.getElementById("authScreen");
+const authDisplayName = document.getElementById("authDisplayName");
+const authError = document.getElementById("authError");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const profileName = document.getElementById("profileName");
+const profileStats = document.getElementById("profileStats");
+const leaderboardScreen = document.getElementById("leaderboardScreen");
+const leaderboardList = document.getElementById("leaderboardList");
+
+// ---- Local player identity (no sign in / sign up - just a name) ----
+// A random id is generated once per device/browser so wins can still be
+// tracked and shown on the leaderboard, without any account or password.
+function getOrCreatePlayerId() {
+  let id = localStorage.getItem("sc_playerId");
+  if (!id) {
+    id = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem("sc_playerId", id);
+  }
+  return id;
+}
+
+function showMenuWithProfile() {
+  profileName.textContent = "👤 " + currentProfile.displayName;
+  profileStats.textContent = `${currentProfile.wins} wins / ${currentProfile.gamesPlayed} games`;
+  authScreen.style.display = "none";
+  menu.style.display = "flex";
+}
+
+authSubmitBtn.onclick = async () => {
+  const name = authDisplayName.value.trim();
+  authError.textContent = "";
+
+  if (!name) {
+    authError.textContent = "Please enter a player name.";
+    return;
+  }
+
+  const playerId = getOrCreatePlayerId();
+  localStorage.setItem("sc_playerName", name);
+
+  currentProfile = { playerId, displayName: name, wins: 0, gamesPlayed: 0 };
+  if (db) {
+    try {
+      const snap = await db.ref("users/" + playerId).get();
+      if (snap.exists()) {
+        currentProfile = snap.val();
+        currentProfile.displayName = name; // always respect latest name entered
+      }
+      await db.ref("users/" + playerId).update({
+        displayName: currentProfile.displayName,
+        wins: currentProfile.wins || 0,
+        gamesPlayed: currentProfile.gamesPlayed || 0
+      });
+    } catch (err) {
+      // Leaderboard sync is optional - keep playing even if this fails.
+    }
+  }
+  showMenuWithProfile();
+};
+
+document.getElementById("signOutBtn").onclick = () => {
+  localStorage.removeItem("sc_playerName");
+  currentProfile = null;
+  authDisplayName.value = "";
+  menu.style.display = "none";
+  authScreen.style.display = "flex";
+};
+
+// ---- FIREBASE INIT (wrapped: if this fails, buttons above still work) ----
+// Only the realtime database is used now (for the leaderboard) - there is
+// no Firebase Auth / sign in / sign up anymore.
+let db = null;
+try {
+  const firebaseConfig = {
+    apiKey: "AIzaSyANHvpQmD5gF3RwSfELMogrpUWg7Z5oADY",
+    authDomain: "councure-the-state.firebaseapp.com",
+    databaseURL: "https://councure-the-state-default-rtdb.firebaseio.com",
+    projectId: "councure-the-state",
+    storageBucket: "councure-the-state.firebasestorage.app",
+    messagingSenderId: "502275475438",
+    appId: "1:502275475438:web:ee7cf1c9db8c00c406f0ff",
+    measurementId: "G-LT4BKT3342"
+  };
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+} catch (err) {
+  // Leaderboard sync just won't work; entering a name and playing still does.
+}
+
+// ---- Resume existing local profile, if any, otherwise show name screen ----
+(async function initProfile() {
+  const savedName = localStorage.getItem("sc_playerName");
+  if (!savedName) {
+    authScreen.style.display = "flex";
+    menu.style.display = "none";
+    return;
+  }
+  const playerId = getOrCreatePlayerId();
+  currentProfile = { playerId, displayName: savedName, wins: 0, gamesPlayed: 0 };
+  if (db) {
+    try {
+      const snap = await db.ref("users/" + playerId).get();
+      if (snap.exists()) currentProfile = snap.val();
+    } catch (err) {
+      // ignore - fall back to local defaults
+    }
+  }
+  showMenuWithProfile();
+})();
+
+async function recordGameResult(didWin) {
+  if (!currentProfile || !db) return;
+  const ref = db.ref("users/" + currentProfile.playerId);
+  const snap = await ref.get();
+  const data = snap.exists() ? snap.val() : { displayName: currentProfile.displayName, wins: 0, gamesPlayed: 0 };
+  data.gamesPlayed = (data.gamesPlayed || 0) + 1;
+  if (didWin) data.wins = (data.wins || 0) + 1;
+  await ref.update({ displayName: data.displayName, gamesPlayed: data.gamesPlayed, wins: data.wins });
+  currentProfile = data;
+}
+
+document.getElementById("leaderboardBtn").onclick = async () => {
+  menu.style.display = "none";
+  leaderboardScreen.style.display = "flex";
+  leaderboardList.innerHTML = "Loading...";
+  if (!db) {
+    leaderboardList.innerHTML = "<p style='color:#8b949e'>Leaderboard isn't available right now.</p>";
+    return;
+  }
+  const snap = await db.ref("users").orderByChild("wins").limitToLast(20).get();
+  const rows = [];
+  snap.forEach((child) => rows.push(child.val()));
+  rows.reverse();
+  leaderboardList.innerHTML = "";
+  rows.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "lb-row";
+    row.innerHTML = `<span class="lb-rank">#${i + 1}</span><span class="lb-name">${p.displayName}</span><span class="lb-wins">${p.wins} wins</span>`;
+    leaderboardList.appendChild(row);
+  });
+  if (rows.length === 0) leaderboardList.innerHTML = "<p style='color:#8b949e'>No games recorded yet.</p>";
+};
+
+document.getElementById("backFromLbBtn").onclick = () => {
+  leaderboardScreen.style.display = "none";
+  menu.style.display = "flex";
+};
+</script>
+<script>
+// ---- CONFIG ----
+// Point this at your deployed server (Render/Railway/Glitch URL).
+// You can also override it without editing this file by opening the page as
+// index.html?server=https://your-real-url.onrender.com (handy for testing).
+const params = new URLSearchParams(location.search);
+const SERVER_URL = params.get("server") || "https://YOUR-SERVER-URL.onrender.com";
+const SERVER_NOT_CONFIGURED = !params.get("server") && SERVER_URL.includes("YOUR-SERVER-URL");
+
+const socket = SERVER_NOT_CONFIGURED ? null : io(SERVER_URL, { transports: ["websocket"] });
+if (socket) {
+  socket.on("connect_error", (err) => {
+    document.getElementById("status").textContent =
+      "Can't reach the game server at " + SERVER_URL + " (" + err.message + "). Is it deployed and running?";
+  });
+}
+
+const menu = document.getElementById("menu");
+const gameDiv = document.getElementById("game");
+const statusEl = document.getElementById("status");
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const legend = document.getElementById("legend");
+const turnInfo = document.getElementById("turnInfo");
+const banner = document.getElementById("banner");
+const bannerText = document.getElementById("bannerText");
+
+let myId = null;
+let roomId = null;
+let state = null;
+let selected = null;
+let cellW = 0, cellH = 0;
+
+document.getElementById("soloBtn").onclick = () => findMatch(true);
+document.getElementById("onlineBtn").onclick = () => findMatch(false);
+document.getElementById("playAgainBtn").onclick = () => location.reload();
+
+function findMatch(solo) {
+  if (SERVER_NOT_CONFIGURED) {
+    statusEl.textContent =
+      "No game server configured yet. Deploy server/server.js (e.g. to Render), then set SERVER_URL " +
+      "in index.html to that URL - or test it right now by opening this page with " +
+      "?server=https://your-url added to the address bar.";
+    return;
+  }
+  statusEl.textContent = solo ? "Starting solo game..." : "Searching for players...";
+  const displayName = currentProfile?.displayName || "Player";
+  socket.emit("findMatch", { soloMode: solo, displayName });
+}
+
+if (socket) {
+socket.on("waiting", () => {
+  statusEl.textContent = "Waiting for other players... (bots will fill in after 10s)";
+});
+
+socket.on("matchFound", (data) => {
+  roomId = data.roomId;
+  myId = data.playerId;
+  state = data.state;
+  menu.style.display = "none";
+  gameDiv.style.display = "flex";
+  resizeCanvas();
+  draw();
+});
+}
+
+if (socket) {
+socket.on("gameState", (newState) => {
+  state = newState;
+  draw();
+});
+
+socket.on("gameOver", ({ winner, name }) => {
+  banner.style.display = "block";
+  const didWin = winner === myId;
+  bannerText.textContent = didWin ? "🏆 You conquered the map!" : `${name || "An opponent"} won the game.`;
+  recordGameResult(didWin).then(() => {
+    if (currentProfile) profileStats.textContent = `${currentProfile.wins} wins / ${currentProfile.gamesPlayed} games`;
+  });
+});
+} // end if (socket)
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 50;
+  if (state) {
+    cellW = canvas.width / state.cols;
+    cellH = canvas.height / state.rows;
+  }
+}
+window.addEventListener("resize", resizeCanvas);
+
+function territoryCenter(id) {
+  const col = id % state.cols;
+  const row = Math.floor(id / state.cols);
+  return { x: col * cellW + cellW / 2, y: row * cellH + cellH / 2 };
+}
+
+function draw() {
+  if (!state) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // legend
+  legend.innerHTML = "";
+  Object.values(state.players).forEach((p) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const alive = p.alive !== false;
+    item.innerHTML = `<span class="dot" style="background:${p.color}"></span>${p.name}${p.id === myId ? " (you)" : ""}${!alive ? " ☠" : ""}`;
+    legend.appendChild(item);
+  });
+
+  const total = state.cols * state.rows;
+  for (let id = 0; id < total; id++) {
+    const col = id % state.cols;
+    const row = Math.floor(id / state.cols);
+    const x = col * cellW, y = row * cellH;
+    const ownerId = state.owners[id];
+    const owner = ownerId ? state.players[ownerId] : null;
+
+    ctx.fillStyle = owner ? owner.color : "#21262d";
+    ctx.globalAlpha = selected == id ? 1 : 0.85;
+    ctx.fillRect(x + 3, y + 3, cellW - 6, cellH - 6);
+    ctx.globalAlpha = 1;
+
+    if (selected == id) {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
+    }
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(state.troops[id], x + cellW / 2, y + cellH / 2);
+  }
+}
+
+canvas.addEventListener("click", (e) => {
+  if (!state) return;
+  const col = Math.floor(e.offsetX / cellW);
+  const row = Math.floor(e.offsetY / cellH);
+  const id = row * state.cols + col;
+
+  if (selected === null) {
+    if (state.owners[id] === myId) {
+      selected = id;
+      turnInfo.textContent = `Selected territory (${state.troops[id]} troops). Tap an adjacent territory to attack/reinforce.`;
+      draw();
+    }
+  } else {
+    if (id === selected) {
+      selected = null;
+      draw();
+      return;
+    }
+    const amount = Math.floor(state.troops[selected] * 0.7);
+    socket.emit("attack", { roomId, from: selected, to: id, amount });
+    selected = null;
+    turnInfo.textContent = "Tap your territory, then an adjacent one to attack/reinforce";
+    draw();
+  }
+});
+</script>
+</body>
+</html>
