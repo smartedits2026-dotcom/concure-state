@@ -16,6 +16,14 @@ const MAX_TROOPS = 999;
 const MAX_PLAYERS = 6;          // <-- room capacity, was 4
 const QUICK_MATCH_WAIT_MS = 10000;
 
+// ---- Troop travel time ----
+// Attacks/reinforcements no longer resolve the instant you click. Troops
+// spend real time "in flight" between territories, based on the distance
+// between them on the map (x/y are 0-100 percentage coordinates). Lower
+// TRAVEL_SPEED_PCT_PER_SEC = slower overall movement across the map.
+const TRAVEL_SPEED_PCT_PER_SEC = 4;   // map-percent units covered per second
+const MIN_TRAVEL_MS = 1500;           // even neighboring territories take at least this long
+
 const BOT_NAMES = ["Bot Red", "Bot Blue", "Bot Green", "Bot Yellow", "Bot Purple", "Bot Orange"];
 const PLAYER_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f", "#9b59b6", "#e67e22"];
 
@@ -192,7 +200,8 @@ function createGame(roomId, humanSockets, maxPlayers, mode, teamSize) {
     players,
     mode,
     teamSize,
-    interval: null
+    interval: null,
+    pendingMoves: []   // troops currently in transit: {fromId, toId, sendAmount, attackerOwner, arrivalAt}
   };
 
   rooms[roomId] = game;
@@ -250,6 +259,15 @@ function botTakeTurn(game, botId) {
   resolveAttack(game, from, to, Math.floor(game.troops[from] * 0.7));
 }
 
+// Straight-line distance between two territories using their 0-100 map
+// percentage coordinates, converted into a travel duration in ms.
+function travelTimeMs(game, fromId, toId) {
+  const a = game.countries[fromId];
+  const b = game.countries[toId];
+  const dist = Math.hypot(a.x - b.x, a.y - b.y);
+  return Math.max(MIN_TRAVEL_MS, (dist / TRAVEL_SPEED_PCT_PER_SEC) * 1000);
+}
+
 function resolveAttack(game, fromId, toId, sendAmount) {
   fromId = Number(fromId);
   toId = Number(toId);
@@ -261,19 +279,42 @@ function resolveAttack(game, fromId, toId, sendAmount) {
   sendAmount = Math.min(sendAmount, game.troops[fromId] - 1);
   if (sendAmount <= 0) return;
 
+  // Troops leave the source territory immediately (so they can't be spent
+  // twice), but no longer land instantly - they travel for a duration based
+  // on real distance, and the attack/reinforce effect only applies on arrival.
   game.troops[fromId] -= sendAmount;
+
+  const duration = travelTimeMs(game, fromId, toId);
+  const arrivalAt = Date.now() + duration;
+
+  game.pendingMoves.push({ fromId, toId, sendAmount, attackerOwner, arrivalAt });
+
+  // Let every client in the room animate this move (marching dots), even
+  // players who didn't trigger it themselves (other humans, bot moves).
+  // Sending the real duration lets the client animate the full flight time
+  // instead of a fixed-length animation.
+  io.to(game.roomId).emit("troopMove", {
+    from: fromId,
+    to: toId,
+    amount: sendAmount,
+    owner: attackerOwner,
+    duration
+  });
+}
+
+// Called when an in-flight move's travel time has elapsed. Whether it's a
+// reinforcement or an attack is decided at arrival (not at launch), since
+// the target's owner may have changed while the troops were en route.
+function applyArrival(game, move) {
+  const { fromId, toId, sendAmount, attackerOwner } = move;
   const targetOwner = game.owners[toId];
   const attackerTeam = game.players[attackerOwner]?.team;
   const targetTeam = targetOwner ? game.players[targetOwner]?.team : null;
-  // sending troops onto your own OR a teammate's territory reinforces it
-  // instead of attacking - teammates never fight each other
   const wasReinforce = !!targetOwner && targetTeam === attackerTeam;
 
   if (wasReinforce) {
-    // reinforce own/ally territory (troops are credited to whoever owns it)
     game.troops[toId] = Math.min(MAX_TROOPS, game.troops[toId] + sendAmount);
   } else {
-    // attack
     if (sendAmount > game.troops[toId]) {
       game.owners[toId] = attackerOwner;
       game.troops[toId] = sendAmount - game.troops[toId];
@@ -282,15 +323,23 @@ function resolveAttack(game, fromId, toId, sendAmount) {
     }
   }
 
-  // Let every client in the room animate this move (marching dots), even
-  // players who didn't trigger it themselves (other humans, bot moves).
-  io.to(game.roomId).emit("troopMove", {
+  io.to(game.roomId).emit("troopArrived", {
     from: fromId,
     to: toId,
     amount: sendAmount,
     owner: attackerOwner,
     reinforce: wasReinforce
   });
+}
+
+// Resolves any in-flight moves whose travel time has elapsed.
+function processArrivals(game) {
+  if (!game.pendingMoves.length) return;
+  const now = Date.now();
+  const arrived = game.pendingMoves.filter((m) => m.arrivalAt <= now);
+  if (!arrived.length) return;
+  game.pendingMoves = game.pendingMoves.filter((m) => m.arrivalAt > now);
+  arrived.forEach((m) => applyArrival(game, m));
 }
 
 function startGameLoop(game) {
@@ -308,6 +357,9 @@ function startGameLoop(game) {
         botTakeTurn(game, p.id);
       }
     });
+
+    // resolve any troops that have finished traveling this tick
+    processArrivals(game);
 
     const result = checkGameOver(game);
     io.to(game.roomId).emit("gameState", serializeState(game));
