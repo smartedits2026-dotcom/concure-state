@@ -13,34 +13,81 @@ const io = new Server(server, { cors: { origin: "*" } });
 const TICK_MS = 1000;          // game tick every 1 second
 const GROWTH_PER_TICK = 1;      // troops gained per tick per territory
 const MAX_TROOPS = 999;
-const MAP_COLS = 6;
-const MAP_ROWS = 5;
 const BOT_NAMES = ["Bot Red", "Bot Blue", "Bot Green", "Bot Yellow"];
 const PLAYER_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f"];
 
 const rooms = {}; // roomId -> gameState
 
-function makeAdjacency(cols, rows) {
-  // simple grid adjacency (4-directional)
+// ---- Real-world map ----
+// x/y are percentage positions (0-100) on an equirectangular world map image
+// (0,0 = top-left / 180W,90N ... 100,100 = bottom-right / 180E,90S), so the
+// client can plot each country in roughly its real location.
+const COUNTRIES = [
+  { name: "Canada",       x: 21, y: 19 },
+  { name: "USA",          x: 23, y: 28 },
+  { name: "Mexico",       x: 22, y: 37 },
+  { name: "Colombia",     x: 29, y: 48 },
+  { name: "Peru",         x: 29, y: 56 },
+  { name: "Brazil",       x: 36, y: 56 },
+  { name: "Argentina",    x: 32, y: 69 },
+  { name: "UK",           x: 49, y: 20 },
+  { name: "France",       x: 51, y: 24 },
+  { name: "Germany",      x: 53, y: 22 },
+  { name: "Spain",        x: 49, y: 28 },
+  { name: "Italy",        x: 53, y: 26 },
+  { name: "Poland",       x: 55, y: 21 },
+  { name: "Russia",       x: 67, y: 16 },
+  { name: "Turkey",       x: 60, y: 28 },
+  { name: "Egypt",        x: 58, y: 36 },
+  { name: "Libya",        x: 55, y: 35 },
+  { name: "Algeria",      x: 51, y: 34 },
+  { name: "Nigeria",      x: 52, y: 45 },
+  { name: "Sudan",        x: 58, y: 42 },
+  { name: "Ethiopia",     x: 61, y: 45 },
+  { name: "Kenya",        x: 61, y: 49 },
+  { name: "DR Congo",     x: 56, y: 52 },
+  { name: "South Africa", x: 57, y: 66 },
+  { name: "Saudi Arabia", x: 63, y: 37 },
+  { name: "Iran",         x: 65, y: 32 },
+  { name: "Pakistan",     x: 69, y: 33 },
+  { name: "India",        x: 72, y: 38 },
+  { name: "China",        x: 79, y: 31 },
+  { name: "Mongolia",     x: 79, y: 24 },
+  { name: "Kazakhstan",   x: 69, y: 23 },
+  { name: "Japan",        x: 88, y: 30 },
+  { name: "Indonesia",    x: 81, y: 51 },
+  { name: "Australia",    x: 87, y: 64 }
+];
+
+// Real land borders (plus a few short sea crossings, marked, to keep the
+// whole map connected/playable - same simplification classic Risk-style
+// games make for islands and narrow straits).
+const BORDERS = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [3, 5], [4, 5], [5, 6],
+  [7, 8], [8, 9], [8, 10], [8, 11], [9, 12], [12, 13], [9, 11],
+  [10, 17], [11, 16],
+  [14, 13], [14, 25],
+  [15, 16], [15, 19], [16, 17], [17, 18], [18, 22],
+  [19, 20], [19, 22], [20, 21], [21, 22], [22, 23],
+  [15, 24], [24, 25], [25, 26], [26, 27], [27, 28],
+  [28, 29], [28, 30], [29, 13], [30, 13], [28, 13],
+  [31, 28], [31, 13], [27, 32], [32, 33]
+];
+
+function makeAdjacency(borders, total) {
   const adj = {};
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const id = r * cols + c;
-      adj[id] = [];
-      if (c > 0) adj[id].push(id - 1);
-      if (c < cols - 1) adj[id].push(id + 1);
-      if (r > 0) adj[id].push(id - cols);
-      if (r < rows - 1) adj[id].push(id + cols);
-    }
-  }
+  for (let i = 0; i < total; i++) adj[i] = [];
+  borders.forEach(([a, b]) => {
+    adj[a].push(b);
+    adj[b].push(a);
+  });
   return adj;
 }
 
 function createGame(roomId, humanSockets) {
   const totalSlots = 4;
-  const cols = MAP_COLS, rows = MAP_ROWS;
-  const total = cols * rows;
-  const adjacency = makeAdjacency(cols, rows);
+  const total = COUNTRIES.length;
+  const adjacency = makeAdjacency(BORDERS, total);
 
   const owners = {}; // territoryId -> playerId (or null)
   const troops = {}; // territoryId -> count
@@ -84,8 +131,7 @@ function createGame(roomId, humanSockets) {
 
   const game = {
     roomId,
-    cols,
-    rows,
+    countries: COUNTRIES,
     adjacency,
     owners,
     troops,
@@ -99,8 +145,8 @@ function createGame(roomId, humanSockets) {
 
 function serializeState(game) {
   return {
-    cols: game.cols,
-    rows: game.rows,
+    countries: game.countries,
+    adjacency: game.adjacency,
     owners: game.owners,
     troops: game.troops,
     players: game.players
