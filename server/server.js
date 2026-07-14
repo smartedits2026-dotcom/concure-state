@@ -13,10 +13,14 @@ const io = new Server(server, { cors: { origin: "*" } });
 const TICK_MS = 1000;          // game tick every 1 second
 const GROWTH_PER_TICK = 1;      // troops gained per tick per territory
 const MAX_TROOPS = 999;
-const BOT_NAMES = ["Bot Red", "Bot Blue", "Bot Green", "Bot Yellow"];
-const PLAYER_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f"];
+const MAX_PLAYERS = 6;          // <-- room capacity, was 4
+const QUICK_MATCH_WAIT_MS = 10000;
 
-const rooms = {}; // roomId -> gameState
+const BOT_NAMES = ["Bot Red", "Bot Blue", "Bot Green", "Bot Yellow", "Bot Purple", "Bot Orange"];
+const PLAYER_COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f", "#9b59b6", "#e67e22"];
+
+const rooms = {};          // roomId -> gameState
+const customLobbies = {};  // code -> { code, hostId, maxPlayers, sockets: [socket,...] }
 
 // ---- Real-world map ----
 // x/y are percentage positions (0-100) on an equirectangular world map image
@@ -84,8 +88,50 @@ function makeAdjacency(borders, total) {
   return adj;
 }
 
-function createGame(roomId, humanSockets) {
-  const totalSlots = 4;
+const TEAM_SIZES = [2, 3];
+
+function clampMaxPlayers(n) {
+  n = Number(n) || 4;
+  return Math.max(2, Math.min(MAX_PLAYERS, Math.floor(n)));
+}
+
+function clampTeamSize(n) {
+  n = Number(n);
+  return TEAM_SIZES.includes(n) ? n : 2;
+}
+
+// For team mode, total players must be an exact multiple of the team size
+// (at least 2 teams). Picks the closest valid total to what was requested.
+function clampTeamMaxPlayers(requested, teamSize) {
+  teamSize = clampTeamSize(teamSize);
+  const maxTeams = Math.floor(MAX_PLAYERS / teamSize);
+  let numTeams = Math.round((Number(requested) || teamSize * 2) / teamSize);
+  numTeams = Math.max(2, Math.min(maxTeams, numTeams));
+  return numTeams * teamSize;
+}
+
+function clampMode(mode) {
+  return mode === "teams" ? "teams" : "ffa";
+}
+
+// Chunk players sequentially into teams of teamSize (join order = team order,
+// so friends who join a lobby back-to-back land on the same team). In "ffa"
+// mode every player is simply their own team of one.
+function assignTeams(ids, mode, teamSize) {
+  const teamOf = {};
+  ids.forEach((id, i) => {
+    teamOf[id] = mode === "teams" ? Math.floor(i / teamSize) : i;
+  });
+  return teamOf;
+}
+
+function createGame(roomId, humanSockets, maxPlayers, mode, teamSize) {
+  mode = clampMode(mode);
+  teamSize = clampTeamSize(teamSize);
+  const totalSlots =
+    mode === "teams"
+      ? clampTeamMaxPlayers(maxPlayers || humanSockets.length || teamSize * 2, teamSize)
+      : clampMaxPlayers(maxPlayers || humanSockets.length || 4);
   const total = COUNTRIES.length;
   const adjacency = makeAdjacency(BORDERS, total);
 
@@ -97,13 +143,12 @@ function createGame(roomId, humanSockets) {
     troops[i] = Math.floor(Math.random() * 3) + 1; // neutral starting troops
   }
 
-  // build player list: humans + bots to fill up to 4
+  // build player list: humans + bots to fill up to totalSlots
   const players = {};
   humanSockets.forEach((s, i) => {
     players[s.id] = {
       id: s.id,
       name: s.displayName || `Player ${i + 1}`,
-      color: PLAYER_COLORS[i],
       isBot: false,
       alive: true
     };
@@ -113,16 +158,25 @@ function createGame(roomId, humanSockets) {
     players[botId] = {
       id: botId,
       name: BOT_NAMES[i],
-      color: PLAYER_COLORS[i],
       isBot: true,
       alive: true
     };
   }
 
-  // assign each player a random starting territory
+  // assign teams (join order) then a color per team (ffa = color per player,
+  // teams mode = teammates share a color so they read as one force on the map)
   const ids = Object.keys(players);
+  const teamOf = assignTeams(ids, mode, teamSize);
+  ids.forEach((pid, i) => {
+    const team = teamOf[pid];
+    players[pid].team = team;
+    players[pid].color = PLAYER_COLORS[(mode === "teams" ? team : i) % PLAYER_COLORS.length];
+  });
+
+  // assign each player a random starting territory
   const freeTerritories = Array.from({ length: total }, (_, i) => i);
   ids.forEach((pid) => {
+    if (freeTerritories.length === 0) return;
     const idx = Math.floor(Math.random() * freeTerritories.length);
     const tId = freeTerritories.splice(idx, 1)[0];
     owners[tId] = pid;
@@ -136,6 +190,8 @@ function createGame(roomId, humanSockets) {
     owners,
     troops,
     players,
+    mode,
+    teamSize,
     interval: null
   };
 
@@ -149,7 +205,8 @@ function serializeState(game) {
     adjacency: game.adjacency,
     owners: game.owners,
     troops: game.troops,
-    players: game.players
+    players: game.players,
+    mode: game.mode
   };
 }
 
@@ -159,9 +216,11 @@ function checkGameOver(game) {
   Object.values(game.players).forEach((p) => {
     if (!ownerSet.has(p.id)) p.alive = false;
   });
-  const aliveOwners = [...ownerSet];
-  if (aliveOwners.length === 1) {
-    return aliveOwners[0]; // winner playerId
+  const aliveTeams = new Set([...ownerSet].map((pid) => game.players[pid].team));
+  if (aliveTeams.size === 1) {
+    const winningTeam = [...aliveTeams][0];
+    const winners = Object.values(game.players).filter((p) => p.team === winningTeam);
+    return { team: winningTeam, winners }; // winners = every player on the winning team
   }
   return null;
 }
@@ -176,7 +235,12 @@ function botTakeTurn(game, botId) {
 
   const from = owned[Math.floor(Math.random() * owned.length)];
   const neighbors = game.adjacency[from] || [];
-  const targets = neighbors.filter((n) => game.owners[n] !== botId);
+  const botTeam = game.players[botId].team;
+  // never attack a teammate's territory - only unowned or enemy-team ones
+  const targets = neighbors.filter((n) => {
+    const o = game.owners[n];
+    return !o || game.players[o].team !== botTeam;
+  });
   if (targets.length === 0) return;
 
   // attack weakest target
@@ -196,10 +260,15 @@ function resolveAttack(game, fromId, toId, sendAmount) {
   if (sendAmount <= 0) return;
 
   game.troops[fromId] -= sendAmount;
-  const wasReinforce = game.owners[toId] === attackerOwner;
+  const targetOwner = game.owners[toId];
+  const attackerTeam = game.players[attackerOwner]?.team;
+  const targetTeam = targetOwner ? game.players[targetOwner]?.team : null;
+  // sending troops onto your own OR a teammate's territory reinforces it
+  // instead of attacking - teammates never fight each other
+  const wasReinforce = !!targetOwner && targetTeam === attackerTeam;
 
   if (wasReinforce) {
-    // reinforce own/ally territory
+    // reinforce own/ally territory (troops are credited to whoever owns it)
     game.troops[toId] = Math.min(MAX_TROOPS, game.troops[toId] + sendAmount);
   } else {
     // attack
@@ -238,63 +307,225 @@ function startGameLoop(game) {
       }
     });
 
-    const winner = checkGameOver(game);
+    const result = checkGameOver(game);
     io.to(game.roomId).emit("gameState", serializeState(game));
 
-    if (winner) {
-      io.to(game.roomId).emit("gameOver", { winner, name: game.players[winner]?.name });
+    if (result) {
+      io.to(game.roomId).emit("gameOver", {
+        winners: result.winners.map((p) => p.id),
+        names: result.winners.map((p) => p.name),
+        teamMode: game.mode === "teams"
+      });
       clearInterval(game.interval);
       delete rooms[game.roomId];
     }
   }, TICK_MS);
 }
 
-// matchmaking queue - waits briefly for others, then fills with bots
-let queue = [];
-let queueTimer = null;
-
-function startMatch() {
-  const humans = queue.splice(0, 4);
-  queue = [];
-  const roomId = `room-${Date.now()}`;
-  humans.forEach((s) => s.join(roomId));
-
-  const game = createGame(roomId, humans);
-
-  humans.forEach((s) => {
+function launchGame(roomId, humanSockets, maxPlayers, mode, teamSize) {
+  humanSockets.forEach((s) => s.join(roomId));
+  const game = createGame(roomId, humanSockets, maxPlayers, mode, teamSize);
+  humanSockets.forEach((s) => {
     s.emit("matchFound", { roomId, playerId: s.id, state: serializeState(game) });
   });
-
   startGameLoop(game);
+  return game;
+}
+
+// ---------------------------------------------------------------------
+// Quick matchmaking queue - waits briefly for others, then fills with bots
+// ---------------------------------------------------------------------
+let queue = [];
+let queueTimer = null;
+let queueMaxPlayers = 4;
+
+function startMatch() {
+  const humans = queue.splice(0, queueMaxPlayers);
+  queue = [];
+  const roomId = `room-${Date.now()}`;
+  launchGame(roomId, humans, queueMaxPlayers);
+}
+
+// ---------------------------------------------------------------------
+// Custom match lobbies - host picks player count (2-6), gets a short
+// shareable code, friends join with the code, host starts whenever ready
+// (remaining open slots get filled with bots).
+// ---------------------------------------------------------------------
+function generateLobbyCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
+  let code;
+  do {
+    code = Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  } while (customLobbies[code]);
+  return code;
+}
+
+function lobbySummary(lobby) {
+  return {
+    code: lobby.code,
+    maxPlayers: lobby.maxPlayers,
+    mode: lobby.mode,
+    teamSize: lobby.teamSize,
+    hostId: lobby.hostId,
+    players: lobby.sockets.map((s) => ({ id: s.id, name: s.displayName || "Player" }))
+  };
+}
+
+function broadcastLobby(lobby) {
+  io.to(`lobby-${lobby.code}`).emit("customLobbyUpdate", lobbySummary(lobby));
+}
+
+function removeSocketFromLobby(socket) {
+  const code = socket.customLobbyCode;
+  if (!code) return;
+  const lobby = customLobbies[code];
+  if (!lobby) return;
+
+  lobby.sockets = lobby.sockets.filter((s) => s.id !== socket.id);
+  socket.leave(`lobby-${code}`);
+  socket.customLobbyCode = null;
+
+  if (lobby.sockets.length === 0) {
+    delete customLobbies[code];
+    return;
+  }
+  if (lobby.hostId === socket.id) {
+    lobby.hostId = lobby.sockets[0].id; // hand off host to next player
+  }
+  broadcastLobby(lobby);
 }
 
 io.on("connection", (socket) => {
-  socket.on("findMatch", ({ soloMode, displayName }) => {
+  // ---- Quick match (Play Online) ----
+  socket.on("findMatch", ({ soloMode, displayName, maxPlayers }) => {
     socket.displayName = (displayName || "Player").toString().slice(0, 24);
+
     if (soloMode) {
       const roomId = `room-${Date.now()}-${socket.id}`;
-      socket.join(roomId);
-      const game = createGame(roomId, [socket]);
-      socket.emit("matchFound", { roomId, playerId: socket.id, state: serializeState(game) });
-      startGameLoop(game);
+      launchGame(roomId, [socket], clampMaxPlayers(maxPlayers || 4));
       return;
     }
 
-    queue.push(socket);
-    socket.emit("waiting");
+    // all quick-match players in the current queue must share one room size;
+    // the first player in an empty queue sets it for that match
+    if (queue.length === 0) {
+      queueMaxPlayers = clampMaxPlayers(maxPlayers || 4);
+    }
 
-    if (queue.length >= 4) {
+    queue.push(socket);
+    socket.emit("waiting", { current: queue.length, needed: queueMaxPlayers });
+
+    if (queue.length >= queueMaxPlayers) {
       clearTimeout(queueTimer);
+      queueTimer = null;
       startMatch();
     } else if (!queueTimer) {
       // wait up to 10s for more players, then fill rest with bots
       queueTimer = setTimeout(() => {
         queueTimer = null;
         if (queue.length > 0) startMatch();
-      }, 10000);
+      }, QUICK_MATCH_WAIT_MS);
     }
   });
 
+  // ---- Custom match: create a private lobby with a shareable code ----
+  socket.on("createCustomMatch", ({ displayName, maxPlayers, mode, teamSize }) => {
+    socket.displayName = (displayName || "Player").toString().slice(0, 24);
+    removeSocketFromLobby(socket); // in case they were already in one
+
+    const code = generateLobbyCode();
+    const lobbyMode = clampMode(mode);
+    const lobbyTeamSize = clampTeamSize(teamSize);
+    const lobby = {
+      code,
+      hostId: socket.id,
+      mode: lobbyMode,
+      teamSize: lobbyTeamSize,
+      maxPlayers:
+        lobbyMode === "teams"
+          ? clampTeamMaxPlayers(maxPlayers, lobbyTeamSize)
+          : clampMaxPlayers(maxPlayers || 4),
+      sockets: [socket]
+    };
+    customLobbies[code] = lobby;
+    socket.customLobbyCode = code;
+    socket.join(`lobby-${code}`);
+
+    socket.emit("customMatchCreated", lobbySummary(lobby));
+  });
+
+  // ---- Custom match: join an existing lobby by code ----
+  socket.on("joinCustomMatch", ({ code, displayName }) => {
+    socket.displayName = (displayName || "Player").toString().slice(0, 24);
+    code = (code || "").toString().trim().toUpperCase();
+    const lobby = customLobbies[code];
+
+    if (!lobby) {
+      socket.emit("customMatchError", { message: "No match found with that code." });
+      return;
+    }
+    if (lobby.sockets.find((s) => s.id === socket.id)) return; // already in it
+    if (lobby.sockets.length >= lobby.maxPlayers) {
+      socket.emit("customMatchError", { message: "That match is already full." });
+      return;
+    }
+
+    removeSocketFromLobby(socket); // leave any previous lobby first
+    lobby.sockets.push(socket);
+    socket.customLobbyCode = code;
+    socket.join(`lobby-${code}`);
+
+    broadcastLobby(lobby);
+  });
+
+  // ---- Custom match: host starts the game (fills remaining slots with bots) ----
+  socket.on("startCustomMatch", ({ code }) => {
+    code = (code || "").toString().trim().toUpperCase();
+    const lobby = customLobbies[code];
+    if (!lobby) return;
+    if (lobby.hostId !== socket.id) {
+      socket.emit("customMatchError", { message: "Only the host can start the match." });
+      return;
+    }
+
+    const humans = lobby.sockets.slice();
+    humans.forEach((s) => { s.customLobbyCode = null; s.leave(`lobby-${code}`); });
+    delete customLobbies[code];
+
+    launchGame(`room-${code}-${Date.now()}`, humans, lobby.maxPlayers, lobby.mode, lobby.teamSize);
+  });
+
+  socket.on("leaveCustomMatch", () => {
+    removeSocketFromLobby(socket);
+  });
+
+  // ---- Player voluntarily leaves an in-progress game (stays connected) ----
+  socket.on("leaveGame", ({ roomId }) => {
+    const game = rooms[roomId];
+    if (!game || !game.players[socket.id]) return;
+
+    // release their territories to neutral, same treatment as a disconnect,
+    // but the game keeps running for everyone else
+    for (const tId in game.owners) {
+      if (game.owners[tId] === socket.id) game.owners[tId] = null;
+    }
+    game.players[socket.id].alive = false;
+    socket.leave(roomId);
+
+    const result = checkGameOver(game);
+    io.to(roomId).emit("gameState", serializeState(game));
+    if (result) {
+      io.to(roomId).emit("gameOver", {
+        winners: result.winners.map((p) => p.id),
+        names: result.winners.map((p) => p.name),
+        teamMode: game.mode === "teams"
+      });
+      clearInterval(game.interval);
+      delete rooms[roomId];
+    }
+  });
+
+  // ---- In-game attack/reinforce ----
   socket.on("attack", ({ roomId, from, to, amount }) => {
     const game = rooms[roomId];
     if (!game) return;
@@ -304,6 +535,8 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     queue = queue.filter((s) => s.id !== socket.id);
+    removeSocketFromLobby(socket);
+
     for (const roomId in rooms) {
       const game = rooms[roomId];
       if (game.players[socket.id]) {
