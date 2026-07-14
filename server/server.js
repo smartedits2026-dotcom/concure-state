@@ -196,8 +196,9 @@ function resolveAttack(game, fromId, toId, sendAmount) {
   if (sendAmount <= 0) return;
 
   game.troops[fromId] -= sendAmount;
+  const wasReinforce = game.owners[toId] === attackerOwner;
 
-  if (game.owners[toId] === attackerOwner) {
+  if (wasReinforce) {
     // reinforce own/ally territory
     game.troops[toId] = Math.min(MAX_TROOPS, game.troops[toId] + sendAmount);
   } else {
@@ -209,6 +210,16 @@ function resolveAttack(game, fromId, toId, sendAmount) {
       game.troops[toId] -= sendAmount;
     }
   }
+
+  // Let every client in the room animate this move (marching dots), even
+  // players who didn't trigger it themselves (other humans, bot moves).
+  io.to(game.roomId).emit("troopMove", {
+    from: fromId,
+    to: toId,
+    amount: sendAmount,
+    owner: attackerOwner,
+    reinforce: wasReinforce
+  });
 }
 
 function startGameLoop(game) {
