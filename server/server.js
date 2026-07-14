@@ -234,10 +234,11 @@ function botTakeTurn(game, botId) {
   if (owned.length === 0) return;
 
   const from = owned[Math.floor(Math.random() * owned.length)];
-  const neighbors = game.adjacency[from] || [];
+  const allTerritories = Object.keys(game.troops).map(Number).filter((t) => t !== Number(from));
   const botTeam = game.players[botId].team;
   // never attack a teammate's territory - only unowned or enemy-team ones
-  const targets = neighbors.filter((n) => {
+  // (borders no longer restrict targets - bots can pick anywhere on the map)
+  const targets = allTerritories.filter((n) => {
     const o = game.owners[n];
     return !o || game.players[o].team !== botTeam;
   });
@@ -254,7 +255,8 @@ function resolveAttack(game, fromId, toId, sendAmount) {
   toId = Number(toId);
   const attackerOwner = game.owners[fromId];
   if (!attackerOwner) return;
-  if (!game.adjacency[fromId].includes(toId)) return;
+  // Border restriction removed: any territory can now attack/reinforce
+  // any other territory anywhere on the map, not just adjacent ones.
 
   sendAmount = Math.min(sendAmount, game.troops[fromId] - 1);
   if (sendAmount <= 0) return;
