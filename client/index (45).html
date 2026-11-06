@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>State Conquest</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0a0c12" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #0a0c12;
+    --panel: #151a24;
+    --panel-hi: #1d2432;
+    --gold: #d4a94a;
+    --gold-bright: #f2c96b;
+    --crimson: #9c342a;
+    --crimson-bright: #cf4a37;
+    --steel: #29303f;
+    --steel-hi: #384056;
+    --parchment: #ece3cc;
+    --muted: #93a0b8;
+    --danger: #d9534f;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height:100%; overflow:hidden; color:var(--parchment);
+    font-family:'Inter', -apple-system, Arial, sans-serif;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -8%, rgba(207,74,55,0.22), transparent 60%),
+      radial-gradient(ellipse 700px 400px at 85% 105%, rgba(212,169,74,0.08), transparent 60%),
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 26px),
+      var(--void);
+  }
+  h1, h2, .brand-font { font-family:'Cinzel', serif; letter-spacing:0.5px; }
+
+  #menu { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:14px; padding:20px; text-align:center; }
+  #menu h1 {
+    font-size:30px; font-weight:700; margin-bottom:2px;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold) 55%, #8a6a2c);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 2px 18px rgba(212,169,74,0.25);
+  }
+  #menu p { color:var(--muted); font-size:13.5px; max-width:320px; line-height:1.5; }
+
+  button {
+    position:relative; color:var(--parchment); border:none; cursor:pointer; width:260px;
+    padding:14px 28px; font-family:'Cinzel', serif; font-size:14px; font-weight:600;
+    letter-spacing:1.2px; text-transform:uppercase; border-radius:7px;
+    background:linear-gradient(180deg, var(--crimson-bright), var(--crimson));
+    border:1px solid rgba(242,201,107,0.45);
+    box-shadow:0 2px 0 rgba(0,0,0,0.35), 0 8px 18px rgba(0,0,0,0.35);
+    transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  button:hover { transform:translateY(-2px); filter:brightness(1.08); box-shadow:0 4px 0 rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.4); }
+  button:active { transform:translateY(0); filter:brightness(0.97); }
+  button.secondary {
+    background:linear-gradient(180deg, var(--steel-hi), var(--steel));
+    border-color:rgba(212,169,74,0.22);
+  }
+  .diffRow { display:flex; gap:8px; justify-content:center; margin-bottom:4px; }
+  .diffRow button { width:auto; padding:8px 14px; font-size:11.5px; background:linear-gradient(180deg, var(--steel-hi), var(--steel)); border-color:rgba(212,169,74,0.22); }
+  .diffRow button.on { background:linear-gradient(180deg, var(--crimson-bright), var(--crimson)); border-color:rgba(242,201,107,0.8); }
+  #status { color:var(--muted); font-size:13px; min-height:16px; }
+
+  #game { display:none; height:100%; flex-direction:column; }
+  #hud {
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:10px 14px; font-size:14px; color:var(--parchment);
+    background:linear-gradient(180deg, var(--panel-hi), var(--panel));
+    border-bottom:1px solid rgba(212,169,74,0.22);
+  }
+  #hud .legend { display:flex; gap:10px; flex-wrap:wrap; }
+  #leaveGameBtn {
+    background:linear-gradient(180deg, #b8453a, #8f3226); width:auto; padding:8px 14px;
+    font-size:11.5px; border-radius:7px; margin-left:10px; flex-shrink:0;
+    border:1px solid rgba(242,201,107,0.3);
+  }
+  .legend-item { display:flex; align-items:center; gap:4px; font-size:12.5px; color:var(--muted); }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow:0 0 0 1px rgba(0,0,0,0.4); }
+  canvas { flex:1; width:100%; touch-action:none; }
+  #banner {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:linear-gradient(180deg, var(--panel-hi), var(--panel));
+    padding:26px 34px; border-radius:14px; border:1px solid rgba(212,169,74,0.5);
+    box-shadow:0 24px 70px rgba(0,0,0,0.65);
+    text-align:center; display:none; z-index:10;
+  }
+  #banner h2 {
+    margin-bottom:14px; font-size:22px;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+
+  /* --- Auth screen --- */
+  #authScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:14px; padding:20px; text-align:center; }
+  #authScreen h1 {
+    font-size:28px; font-weight:700; margin-bottom:2px;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold) 55%, #8a6a2c);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 2px 18px rgba(212,169,74,0.25);
+  }
+  .authField {
+    width:260px; padding:12px 14px; border-radius:8px; border:1px solid var(--steel-hi);
+    background:var(--panel); color:var(--parchment); font-size:15px; font-family:'Inter', sans-serif;
+  }
+  .authField:focus, #joinCodeInput:focus {
+    outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(212,169,74,0.15);
+  }
+  #authError { color:var(--danger); font-size:13px; min-height:16px; }
+  #authSubmitBtn { margin-top:4px; }
+  #signOutBtn { background:linear-gradient(180deg, var(--steel-hi), var(--steel)); width:auto; padding:8px 16px; font-size:11.5px; }
+
+  /* --- Profile bar on menu --- */
+  #profileBar {
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(180deg, var(--panel-hi), var(--panel));
+    border:1px solid rgba(212,169,74,0.3);
+    padding:8px 18px; border-radius:999px; font-size:14px; margin-bottom:2px;
+  }
+  #profileName { font-family:'Cinzel', serif; font-size:13px; color:var(--gold-bright); font-weight:600; letter-spacing:0.4px; }
+  #profileStats { color:var(--muted); font-size:11.5px; }
+
+  /* --- Custom match screens --- */
+  #customSetupScreen, #customLobbyScreen {
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    height:100%; gap:16px; padding:20px; text-align:center;
+  }
+  #customSetupScreen h1, #customLobbyScreen h1 {
+    font-size:23px;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .playerCountRow { display:flex; gap:8px; }
+  .countBtn {
+    width:44px; padding:10px 0; font-size:14px; border-radius:7px;
+    background:linear-gradient(180deg, var(--steel-hi), var(--steel));
+    border:1px solid rgba(212,169,74,0.22);
+  }
+  .countBtn.active { background:linear-gradient(180deg, var(--crimson-bright), var(--crimson)); border-color:var(--gold); }
+  .modeRow, .teamSizeRow { display:flex; gap:8px; }
+  .modeBtn {
+    width:auto; padding:10px 18px; font-size:12.5px; border-radius:7px;
+    background:linear-gradient(180deg, var(--steel-hi), var(--steel));
+    border:1px solid rgba(212,169,74,0.22);
+  }
+  .modeBtn.active { background:linear-gradient(180deg, var(--crimson-bright), var(--crimson)); border-color:var(--gold); }
+  #setupSectionLabel { color:var(--gold); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; font-family:'Cinzel', serif; margin-top:2px; }
+  #customDivider { color:var(--muted); font-size:12px; margin:6px 0; letter-spacing:1px; text-transform:uppercase; }
+  #joinCodeInput {
+    width:200px; padding:12px 14px; border-radius:8px; border:1px solid var(--steel-hi);
+    background:var(--panel); color:var(--parchment); font-size:18px; letter-spacing:4px; text-align:center;
+    text-transform:uppercase; font-family:'Cinzel', serif;
+  }
+  #lobbyCodeDisplay {
+    font-family:'Cinzel', serif; font-size:32px; font-weight:600; letter-spacing:7px;
+    background:linear-gradient(180deg, var(--panel-hi), var(--panel));
+    border:1px solid rgba(212,169,74,0.4); color:var(--gold-bright);
+    padding:14px 22px; border-radius:12px;
+  }
+  #lobbyPlayerList { display:flex; flex-direction:column; gap:6px; width:260px; }
+  .lobbyPlayerRow {
+    background:linear-gradient(180deg, var(--panel-hi), var(--panel));
+    border-left:3px solid var(--gold);
+    padding:8px 12px; border-radius:8px; font-size:13.5px;
+    display:flex; justify-content:space-between;
+  }
+  #lobbyHint { color:var(--muted); font-size:12.5px; max-width:280px; }
+  #customError { color:var(--danger); font-size:13px; min-height:16px; }
+
+  .mapLabel { color:var(--gold); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; font-family:'Cinzel', serif; }
+  .mapRow { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:330px; }
+  .mapBtn {
+    width:auto; padding:7px 11px; font-size:11px; border-radius:7px; letter-spacing:.6px;
+    display:flex; align-items:center; gap:6px;
+    background:linear-gradient(180deg, var(--steel-hi), var(--steel)); border:1px solid rgba(212,169,74,0.22);
+  }
+  .mapBtn i { width:12px; height:12px; border-radius:50%; display:inline-block; border:1px solid rgba(255,255,255,.35); }
+  .mapBtn.active { background:linear-gradient(180deg, var(--crimson-bright), var(--crimson)); border-color:var(--gold); }
+  #menuBg { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  #authScreen, #menu, #customSetupScreen, #customLobbyScreen { position:relative; z-index:1; }
+  #muteBtn { position:fixed; top:12px; right:12px; z-index:50; width:42px; height:42px; padding:0; border-radius:50%; font-size:17px; letter-spacing:0;
+    background:rgba(21,26,36,.8); border:1px solid rgba(212,169,74,.45); backdrop-filter:blur(6px); }
+  #menu h1 { font-size:46px; letter-spacing:5px; line-height:1.05; text-transform:uppercase;
+    background:linear-gradient(100deg,#8a6a2c 0%,#f2c96b 40%,#fff3c4 50%,#f2c96b 60%,#8a6a2c 100%); background-size:250% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent; animation:shine 5s linear infinite;
+    filter:drop-shadow(0 4px 22px rgba(212,169,74,.35)); }
+  @keyframes shine { from{background-position:200% 0} to{background-position:-50% 0} }
+  @keyframes fadeUp { from{opacity:0; transform:translateY(18px)} to{opacity:1; transform:none} }
+  @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  @keyframes glowPulse { 0%,100%{box-shadow:0 2px 0 rgba(0,0,0,.35),0 8px 18px rgba(0,0,0,.35),0 0 0 rgba(242,201,107,0)} 50%{box-shadow:0 2px 0 rgba(0,0,0,.35),0 8px 18px rgba(0,0,0,.35),0 0 22px rgba(242,201,107,.45)} }
+  #menu .crest { width:74px; height:74px; animation:floaty 4s ease-in-out infinite; filter:drop-shadow(0 6px 16px rgba(212,169,74,.4)); }
+  #menu .tag { font-family:'Cinzel',serif; font-size:11px; letter-spacing:5px; text-transform:uppercase; color:var(--gold); opacity:.9; }
+  .menuPanel { width:min(92vw,380px); display:flex; flex-direction:column; align-items:center; gap:12px; padding:22px 20px; margin-top:6px;
+    background:linear-gradient(180deg,rgba(29,36,50,.78),rgba(15,19,28,.82)); border:1px solid rgba(212,169,74,.28); border-radius:16px;
+    backdrop-filter:blur(14px); box-shadow:0 20px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07); }
+  .menuPanel > * { animation:fadeUp .6s cubic-bezier(.2,.8,.2,1) both; }
+  .menuPanel > *:nth-child(1){animation-delay:.10s} .menuPanel > *:nth-child(2){animation-delay:.16s} .menuPanel > *:nth-child(3){animation-delay:.22s}
+  .menuPanel > *:nth-child(4){animation-delay:.28s} .menuPanel > *:nth-child(5){animation-delay:.34s} .menuPanel > *:nth-child(6){animation-delay:.40s}
+  .menuPanel > *:nth-child(7){animation-delay:.46s} .menuPanel > *:nth-child(8){animation-delay:.52s} .menuPanel > *:nth-child(9){animation-delay:.58s}
+  .menuPanel > button { width:100%; overflow:hidden; }
+  .menuPanel > button::after { content:""; position:absolute; top:0; left:-60%; width:40%; height:100%; transform:skewX(-20deg);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent); transition:left .5s ease; }
+  .menuPanel > button:hover::after { left:130%; }
+  .menuPanel > button:hover { transform:translateY(-2px); filter:brightness(1.12); }
+  .menuPanel > button:active { transform:translateY(1px) scale(.99); }
+  #soloBtn { animation:fadeUp .6s .3s both, glowPulse 2.8s 1s ease-in-out infinite !important; }
+  .menuPanel p { font-size:12.5px; max-width:none; }
+</style>
+</head>
+<body>
+
+<div id="debugBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:999; background:#f85149; color:#fff; font-size:13px; padding:10px 14px; max-height:40vh; overflow:auto; white-space:pre-wrap;"></div>
+
+<div id="authScreen">
+  <h1>⚔️ State Conquest</h1>
+  <p style="color:#8b949e;font-size:14px;max-width:320px;">Choose a player name to save your stats and climb the leaderboard.</p>
+  <input id="authDisplayName" class="authField" type="text" placeholder="Player name" maxlength="20" />
+  <div id="authError"></div>
+  <button id="authSubmitBtn">Continue</button>
+</div>
+
+<canvas id="menuBg"></canvas>
+<button id="muteBtn" title="Sound on/off">🔊</button>
+
+<div id="menu" style="display:none;">
+  <svg class="crest" viewBox="0 0 64 64" fill="none" stroke="#f2c96b" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M32 4 56 13v18c0 15-10 25-24 29C18 56 8 46 8 31V13z" fill="rgba(156,52,42,.55)"/>
+    <path d="M20 40 44 18M44 40 20 18"/><path d="M17 43l5-1-4-4zM47 43l-5-1 4-4z" fill="#f2c96b"/>
+    <path d="M32 22l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z" fill="#f2c96b" stroke="none"/>
+  </svg>
+  <h1>State Conquest</h1>
+  <div class="tag">Claim the map. Rule alone.</div>
+  <div class="menuPanel">
+  <p>Capture territories, grow your army, and take over the map. Play solo against bots, jump into quick online matches, or set up a custom match for 2-6 players — Free For All, or Team Up in teams of 2 or 3.</p>
+  <div id="profileBar">
+    <span id="profileName"></span>
+    <span id="profileStats"></span>
+  </div>
+  <div class="mapLabel">Map</div><div class="mapRow"></div>
+  <div class="mapLabel">Bot Difficulty</div>
+  <div class="diffRow" id="diffRow"></div>
+  <button id="soloBtn">Play Solo (vs Bots)</button>
+  <button id="onlineBtn" class="secondary">Quick Match (Online)</button>
+  <button id="customMatchBtn" class="secondary">🎮 Custom Match</button>
+  <button id="signOutBtn">Change Name</button>
+  <div id="status"></div>
+  </div>
+</div>
+
+<div id="customSetupScreen">
+  <h1>🎮 Custom Match</h1>
+  <p style="color:#8b949e;font-size:14px;max-width:300px;">Choose a game mode, how many players, then create a match to get a code, or join a match with someone else's code.</p>
+  <div id="setupSectionLabel">Game Mode</div>
+  <div class="modeRow" id="modeRow"></div>
+  <div class="teamSizeRow" id="teamSizeRow" style="display:none;"></div>
+  <div id="setupSectionLabel2" class="setupSectionLabel" style="color:var(--gold); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; font-family:'Cinzel', serif;">Players</div>
+  <div class="playerCountRow" id="playerCountRow"></div>
+  <div class="mapLabel">Map</div><div class="mapRow"></div>
+  <button id="createCustomBtn">Create Match</button>
+  <div id="customDivider">— or —</div>
+  <input id="joinCodeInput" type="text" placeholder="CODE" maxlength="5" />
+  <button id="joinCustomBtn" class="secondary">Join Match</button>
+  <div id="customError"></div>
+  <button id="backFromCustomSetupBtn" class="secondary">Back</button>
+</div>
+
+<div id="customLobbyScreen">
+  <h1>Match Lobby</h1>
+  <p style="color:#8b949e;font-size:13px;">Share this code with the players you want to join:</p>
+  <div id="lobbyCodeDisplay"></div>
+  <div id="lobbyPlayerList"></div>
+  <div id="lobbyHint"></div>
+  <button id="startCustomBtn">Start Match</button>
+  <button id="leaveLobbyBtn" class="secondary">Leave Lobby</button>
+</div>
+
+<div id="game">
+  <div id="hud">
+    <div id="turnInfo">Tap your territory, then tap any territory (even your own) to send troops there</div>
+    <div class="legend" id="legend"></div>
+    <button id="leaveGameBtn">🏳️ Surrender</button>
+  </div>
+  <canvas id="board"></canvas>
+</div>
+
+<div id="banner">
+  <h2 id="bannerText"></h2>
+  <button id="playAgainBtn">Play Again</button>
+</div>
+
+<script>
+// ---- DEBUG / ERROR VISIBILITY ----
+// Any uncaught error anywhere on the page shows up here on screen instead
+// of silently killing the rest of the script (which is what makes buttons
+// "stop working" with no clue why).
+(function () {
+  const banner = document.getElementById("debugBanner");
+  function show(msg) {
+    banner.style.display = "block";
+    banner.textContent += (banner.textContent ? "\n\n" : "") + msg;
+  }
+  window.addEventListener("error", (e) => {
+    show("Script error: " + e.message + (e.filename ? "\n(" + e.filename + ":" + e.lineno + ")" : ""));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    show("Unhandled promise error: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+  if (location.protocol === "file:") {
+    show("Heads up: you're opening this file directly (file://). Some things (Firebase auth, CDN scripts) behave unreliably this way. Serve it over http:// instead - e.g. run `npx serve .` or `python3 -m http.server` in the client folder, then open http://localhost:PORT/index.html.");
+  }
+})();
+</script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// ---- CONFIG ----
+// Point this at your deployed server (Render/Railway/Glitch URL).
+// You can also override it without editing this file by opening the page as
+// index.html?server=https://your-real-url.onrender.com (handy for testing).
+// NOTE: this block must load right after the socket.io <script> above and
+// before every other inline <script> on the page, because later blocks
+// reference `socket` at the top level (not just inside click handlers), and
+// `const`/`let` declared in a later <script> tag is NOT visible to code in
+// an earlier one - referencing it early throws "socket is not defined" and
+// silently kills the rest of that script block (which is what was breaking
+// the custom-lobby listeners below).
+const params = new URLSearchParams(location.search);
+const SERVER_URL = params.get("server") || "https://concure-state.onrender.com";
+const SERVER_NOT_CONFIGURED = !params.get("server") && SERVER_URL.includes("YOUR-SERVER-URL");
+
+const socket = SERVER_NOT_CONFIGURED ? null : io(SERVER_URL, { transports: ["websocket"] });
+if (socket) {
+  socket.on("connect_error", (err) => {
+    const statusNode = document.getElementById("status");
+    if (statusNode) {
+      statusNode.textContent =
+        "Can't reach the game server at " + SERVER_URL + " (" + err.message + "). Is it deployed and running?";
+    }
+  });
+}
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6/dist/d3-delaunay.min.js"></script>
+<script>
+// ---- DOM refs + button wiring FIRST ----
+// (deliberately done before Firebase init: if Firebase throws, buttons still work)
+let currentProfile = null; // { playerId, displayName, wins, gamesPlayed }
+
+const authScreen = document.getElementById("authScreen");
+const authDisplayName = document.getElementById("authDisplayName");
+const authError = document.getElementById("authError");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const profileName = document.getElementById("profileName");
+const profileStats = document.getElementById("profileStats");
+const customSetupScreen = document.getElementById("customSetupScreen");
+const customLobbyScreen = document.getElementById("customLobbyScreen");
+const playerCountRow = document.getElementById("playerCountRow");
+const joinCodeInput = document.getElementById("joinCodeInput");
+const customError = document.getElementById("customError");
+const lobbyCodeDisplay = document.getElementById("lobbyCodeDisplay");
+const lobbyPlayerList = document.getElementById("lobbyPlayerList");
+const lobbyHint = document.getElementById("lobbyHint");
+
+let selectedPlayerCount = 4;
+let selectedMode = "ffa";      // "ffa" | "teams"
+let selectedTeamSize = 2;      // 2 or 3 players per team (teams mode only)
+let myLobbyCode = null;
+let currentLobbyData = null;
+let isLobbyHost = false;
+
+const modeRow = document.getElementById("modeRow");
+const teamSizeRow = document.getElementById("teamSizeRow");
+
+// Valid total player counts for a given mode/team size:
+// - Free For All: any total from 2-6
+// - Team Up: must be an exact multiple of the team size (min 2 teams, max 6 players)
+function validTotalsFor(mode, teamSize) {
+  if (mode !== "teams") return [2, 3, 4, 5, 6];
+  const maxTeams = Math.floor(6 / teamSize);
+  const totals = [];
+  for (let t = 2; t <= maxTeams; t++) totals.push(t * teamSize);
+  return totals;
+}
+
+// (Re)build the player-count picker buttons for the current mode/team size
+function renderPlayerCountOptions() {
+  const totals = validTotalsFor(selectedMode, selectedTeamSize);
+  if (!totals.includes(selectedPlayerCount)) selectedPlayerCount = totals[totals.length - 1];
+
+  playerCountRow.innerHTML = "";
+  totals.forEach((n) => {
+    const b = document.createElement("button");
+    b.className = "countBtn" + (n === selectedPlayerCount ? " active" : "");
+    b.textContent = selectedMode === "teams" ? `${n / selectedTeamSize}×${selectedTeamSize}` : n;
+    b.title = selectedMode === "teams" ? `${n / selectedTeamSize} teams of ${selectedTeamSize}` : `${n} players`;
+    b.onclick = () => {
+      selectedPlayerCount = n;
+      [...playerCountRow.children].forEach((el) => el.classList.remove("active"));
+      b.classList.add("active");
+    };
+    playerCountRow.appendChild(b);
+  });
+}
+
+// Free For All / Team Up mode toggle
+[{ id: "ffa", label: "Free For All" }, { id: "teams", label: "Team Up" }].forEach((m) => {
+  const b = document.createElement("button");
+  b.className = "modeBtn" + (m.id === selectedMode ? " active" : "");
+  b.textContent = m.label;
+  b.onclick = () => {
+    selectedMode = m.id;
+    [...modeRow.children].forEach((el) => el.classList.remove("active"));
+    b.classList.add("active");
+    teamSizeRow.style.display = selectedMode === "teams" ? "flex" : "none";
+    renderPlayerCountOptions();
+  };
+  modeRow.appendChild(b);
+});
+
+// Team size (2 or 3 players per team) - only shown in Team Up mode
+[2, 3].forEach((size) => {
+  const b = document.createElement("button");
+  b.className = "modeBtn" + (size === selectedTeamSize ? " active" : "");
+  b.textContent = `${size} / team`;
+  b.onclick = () => {
+    selectedTeamSize = size;
+    [...teamSizeRow.children].forEach((el) => el.classList.remove("active"));
+    b.classList.add("active");
+    renderPlayerCountOptions();
+  };
+  teamSizeRow.appendChild(b);
+});
+
+renderPlayerCountOptions();
+
+// ---- Map themes (selected before playing, sent to the server as `map`) ----
+const MAPS = {
+  classic: { name: "Classic",  bg0: "#14375a", bg1: "#050c17", neutral: "#4a586f", border: "#050c17", rim: "rgba(200,220,255,0.18)", pattern: null, swatch: "#4a586f" },
+  desert:  { name: "Desert",   bg0: "#4a3418", bg1: "#150d05", neutral: "#9a7d52", border: "#2a1a0a", rim: "rgba(255,225,170,0.25)", pattern: "dots", patternColor: "rgba(60,35,10,0.45)", swatch: "#c9a45f" },
+  arctic:  { name: "Arctic",   bg0: "#2c5878", bg1: "#07131f", neutral: "#8aa4bd", border: "#0c2034", rim: "rgba(255,255,255,0.35)", pattern: "lines", patternColor: "rgba(255,255,255,0.22)", swatch: "#cfe6f7" },
+  volcanic:{ name: "Volcanic", bg0: "#3a1410", bg1: "#0c0303", neutral: "#4d3c3a", border: "#100505", rim: "rgba(255,120,50,0.38)", pattern: "embers", patternColor: "rgba(255,110,40,0.55)", swatch: "#e0501f" },
+  neon:    { name: "Neon Grid",bg0: "#0c1f3d", bg1: "#02040a", neutral: "#18233d", border: "#02040a", rim: "rgba(0,229,255,0.5)", pattern: "grid", patternColor: "rgba(0,229,255,0.2)", swatch: "#00e5ff" }
+};
+let selectedMap = "classic";
+function renderMapPickers() {
+  document.querySelectorAll(".mapRow").forEach((row) => {
+    row.innerHTML = "";
+    Object.entries(MAPS).forEach(([key, m]) => {
+      const b = document.createElement("button");
+      b.className = "mapBtn" + (key === selectedMap ? " active" : "");
+      b.innerHTML = `<i style="background:${m.swatch}"></i>${m.name}`;
+      b.onclick = () => {
+        selectedMap = key;
+        try { setStored("sc_map", key); } catch (e) {}
+        renderMapPickers();
+      };
+      row.appendChild(b);
+    });
+  });
+}
+
+// ---- Persistent storage helpers ----
+// Backed by localStorage AND a 10-year cookie, so the saved name survives
+// even if the browser/OS clears localStorage (private-browsing cleanup,
+// "clear site data" privacy settings, etc). Name is asked for ONCE, ever,
+// per device - never on every visit.
+function setStored(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) { /* ignore - cookie fallback below still works */ }
+  try { document.cookie = `${key}=${encodeURIComponent(value)}; max-age=${60 * 60 * 24 * 365 * 10}; path=/; SameSite=Lax`; } catch (e) {}
+}
+function getStored(key) {
+  try {
+    const v = localStorage.getItem(key);
+    if (v !== null) return v;
+  } catch (e) { /* localStorage unavailable/cleared - fall through to cookie */ }
+  const match = document.cookie.match(new RegExp("(?:^|; )" + key + "=([^;]*)"));
+  const fromCookie = match ? decodeURIComponent(match[1]) : null;
+  // heal localStorage from the cookie if it was the one that got wiped
+  if (fromCookie !== null) { try { localStorage.setItem(key, fromCookie); } catch (e) {} }
+  return fromCookie;
+}
+function removeStored(key) {
+  try { localStorage.removeItem(key); } catch (e) {}
+  try { document.cookie = `${key}=; max-age=0; path=/`; } catch (e) {}
+}
+
+// ---- Local player identity (no sign in / sign up - just a name) ----
+// A random id is generated once per device/browser so wins can still be
+// tracked and shown on the leaderboard, without any account or password.
+try { const sm = getStored("sc_map"); if (sm && MAPS[sm]) selectedMap = sm; } catch (e) {}
+renderMapPickers();
+
+function getOrCreatePlayerId() {
+  let id = getStored("sc_playerId");
+  if (!id) {
+    id = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+    setStored("sc_playerId", id);
+  }
+  return id;
+}
+
+function showMenuWithProfile() {
+  profileName.textContent = "👤 " + currentProfile.displayName;
+  profileStats.textContent = `${currentProfile.wins} wins / ${currentProfile.gamesPlayed} games`;
+  authScreen.style.display = "none";
+  menu.style.display = "flex";
+}
+
+authSubmitBtn.onclick = async () => {
+  const name = authDisplayName.value.trim();
+  authError.textContent = "";
+
+  if (!name) {
+    authError.textContent = "Please enter a player name.";
+    return;
+  }
+
+  const playerId = getOrCreatePlayerId();
+  setStored("sc_playerName", name);
+
+  currentProfile = { playerId, displayName: name, wins: 0, gamesPlayed: 0 };
+  if (db) {
+    try {
+      const snap = await db.ref("users/" + playerId).get();
+      if (snap.exists()) {
+        currentProfile = snap.val();
+        currentProfile.displayName = name; // always respect latest name entered
+      }
+      await db.ref("users/" + playerId).update({
+        displayName: currentProfile.displayName,
+        wins: currentProfile.wins || 0,
+        gamesPlayed: currentProfile.gamesPlayed || 0
+      });
+    } catch (err) {
+      // Leaderboard sync is optional - keep playing even if this fails.
+    }
+  }
+  showMenuWithProfile();
+};
+
+document.getElementById("signOutBtn").onclick = () => {
+  removeStored("sc_playerName");
+  currentProfile = null;
+  authDisplayName.value = "";
+  menu.style.display = "none";
+  authScreen.style.display = "flex";
+};
+
+// ---- FIREBASE INIT (wrapped: if this fails, buttons above still work) ----
+// Only the realtime database is used now (for the leaderboard) - there is
+// no Firebase Auth / sign in / sign up anymore.
+let db = null;
+try {
+  const firebaseConfig = {
+    apiKey: "AIzaSyANHvpQmD5gF3RwSfELMogrpUWg7Z5oADY",
+    authDomain: "councure-the-state.firebaseapp.com",
+    databaseURL: "https://councure-the-state-default-rtdb.firebaseio.com",
+    projectId: "councure-the-state",
+    storageBucket: "councure-the-state.firebasestorage.app",
+    messagingSenderId: "502275475438",
+    appId: "1:502275475438:web:ee7cf1c9db8c00c406f0ff",
+    measurementId: "G-LT4BKT3342"
+  };
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+} catch (err) {
+  // Leaderboard sync just won't work; entering a name and playing still does.
+}
+
+// ---- Resume existing local profile, if any, otherwise show name screen ----
+(async function initProfile() {
+  const savedName = getStored("sc_playerName");
+  if (!savedName) {
+    authScreen.style.display = "flex";
+    menu.style.display = "none";
+    return;
+  }
+  const playerId = getOrCreatePlayerId();
+  currentProfile = { playerId, displayName: savedName, wins: 0, gamesPlayed: 0 };
+  if (db) {
+    try {
+      const snap = await db.ref("users/" + playerId).get();
+      if (snap.exists()) currentProfile = snap.val();
+    } catch (err) {
+      // ignore - fall back to local defaults
+    }
+  }
+  showMenuWithProfile();
+})();
+
+async function recordGameResult(didWin) {
+  if (!currentProfile || !db) return;
+  const ref = db.ref("users/" + currentProfile.playerId);
+  const snap = await ref.get();
+  const data = snap.exists() ? snap.val() : { displayName: currentProfile.displayName, wins: 0, gamesPlayed: 0 };
+  data.gamesPlayed = (data.gamesPlayed || 0) + 1;
+  if (didWin) data.wins = (data.wins || 0) + 1;
+  await ref.update({ displayName: data.displayName, gamesPlayed: data.gamesPlayed, wins: data.wins });
+
+  // Append-only permanent history entry. push() always creates a brand new
+  // node with a unique key - it's never overwritten and nothing here ever
+  // deletes old entries, so a player's full game history stays forever.
+  try {
+    await ref.child("history").push({
+      result: didWin ? "win" : "loss",
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    // history logging is best-effort - don't block the rest of the flow
+  }
+
+  currentProfile = data;
+}
+
+// ---- Custom match screen navigation ----
+document.getElementById("customMatchBtn").onclick = () => {
+  customError.textContent = "";
+  joinCodeInput.value = "";
+  menu.style.display = "none";
+  customSetupScreen.style.display = "flex";
+};
+
+document.getElementById("backFromCustomSetupBtn").onclick = () => {
+  customSetupScreen.style.display = "none";
+  menu.style.display = "flex";
+};
+
+document.getElementById("leaveLobbyBtn").onclick = () => {
+  if (socket) socket.emit("leaveCustomMatch");
+  myLobbyCode = null;
+  currentLobbyData = null;
+  customLobbyScreen.style.display = "none";
+  menu.style.display = "flex";
+};
+
+document.getElementById("createCustomBtn").onclick = () => {
+  if (!socket) { customError.textContent = "Not connected to the game server yet."; return; }
+  customError.textContent = "";
+  const displayName = currentProfile?.displayName || "Player";
+  socket.emit("createCustomMatch", {
+    displayName,
+    maxPlayers: selectedPlayerCount,
+    mode: selectedMode,
+    teamSize: selectedTeamSize,
+    map: selectedMap
+  });
+};
+
+document.getElementById("joinCustomBtn").onclick = () => {
+  if (!socket) { customError.textContent = "Not connected to the game server yet."; return; }
+  const code = joinCodeInput.value.trim();
+  if (!code) { customError.textContent = "Enter a match code."; return; }
+  customError.textContent = "";
+  const displayName = currentProfile?.displayName || "Player";
+  socket.emit("joinCustomMatch", { code, displayName });
+};
+
+document.getElementById("startCustomBtn").onclick = () => {
+  if (!socket || !myLobbyCode) return;
+  socket.emit("startCustomMatch", { code: myLobbyCode });
+};
+
+function renderLobby(data) {
+  myLobbyCode = data.code;
+  currentLobbyData = data;
+  isLobbyHost = data.hostId === socket.id;
+  const isTeams = data.mode === "teams";
+  const teamSize = data.teamSize || 2;
+
+  customSetupScreen.style.display = "none";
+  customLobbyScreen.style.display = "flex";
+
+  document.getElementById("customLobbyScreen").querySelector("h1").textContent =
+    isTeams ? `Match Lobby — Team Up (${teamSize}/team)` : "Match Lobby — Free For All";
+
+  lobbyCodeDisplay.textContent = data.code;
+  lobbyPlayerList.innerHTML = "";
+  data.players.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "lobbyPlayerRow";
+    const isYou = p.id === socket.id;
+    const isHost = p.id === data.hostId;
+    // preview team assignment: same join-order chunking the server uses
+    const teamLabel = isTeams ? `Team ${Math.floor(i / teamSize) + 1}` : "";
+    row.innerHTML = `<span>${p.name}${isYou ? " (you)" : ""}</span><span>${isHost ? "👑 " : ""}${teamLabel}</span>`;
+    lobbyPlayerList.appendChild(row);
+  });
+
+  lobbyHint.textContent = `${data.players.length}/${data.maxPlayers} players.` +
+    (data.players.length < data.maxPlayers ? " Waiting for more players to join — no bots will be added." : " Full!");
+
+  const startBtn = document.getElementById("startCustomBtn");
+  startBtn.style.display = isLobbyHost ? "block" : "none";
+  if (!isLobbyHost) {
+    lobbyHint.textContent += " Waiting for the host to start...";
+  }
+}
+
+if (socket) {
+  socket.on("customMatchCreated", (d) => { isSoloGame = false; renderLobby(d); });
+  socket.on("customLobbyUpdate", (d) => { isSoloGame = false; renderLobby(d); });
+  socket.on("customMatchError", (data) => {
+    customError.textContent = data.message || "Something went wrong with that match.";
+  });
+}
+</script>
+<script>
+const menu = document.getElementById("menu");
+const gameDiv = document.getElementById("game");
+const statusEl = document.getElementById("status");
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const legend = document.getElementById("legend");
+const turnInfo = document.getElementById("turnInfo");
+const banner = document.getElementById("banner");
+const bannerText = document.getElementById("bannerText");
+
+let myId = null;
+let roomId = null;
+let state = null;
+let selected = null;
+
+// ---- Self-contained world backdrop (no external image / no network needed) ----
+// Rough continent silhouettes as percentage points (0-100), same coordinate
+// system as the country markers, smoothed into soft blobs at draw time.
+const CONTINENTS = [
+  // North America
+  [[8,10],[25,6],[34,10],[30,20],[34,28],[28,34],[24,40],[18,44],[12,38],[6,30],[4,18]],
+  // South America
+  [[24,46],[34,45],[38,52],[36,60],[32,68],[26,75],[20,68],[18,58],[20,50]],
+  // Europe
+  [[42,12],[58,10],[62,16],[58,22],[52,26],[46,24],[42,18]],
+  // Africa
+  [[42,30],[58,28],[62,34],[60,44],[58,54],[54,62],[50,70],[44,64],[40,52],[40,40]],
+  // Asia
+  [[58,8],[95,6],[98,20],[94,30],[88,26],[82,34],[78,42],[72,40],[68,46],[62,40],[58,30],[56,20]],
+  // Australia
+  [[78,58],[92,56],[95,64],[90,70],[80,70],[76,64]]
+];
+
+function drawSmoothBlob(pts) {
+  ctx.beginPath();
+  let p0 = pts[pts.length - 1];
+  let p1 = pts[0];
+  let mid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+  ctx.moveTo(mid.x, mid.y);
+  for (let i = 0; i < pts.length; i++) {
+    p0 = pts[i];
+    p1 = pts[(i + 1) % pts.length];
+    mid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+    ctx.quadraticCurveTo(p0.x, p0.y, mid.x, mid.y);
+  }
+  ctx.closePath();
+}
+
+function drawWorldBackdrop() {
+  ctx.fillStyle = "#1f3a52";
+  CONTINENTS.forEach((poly) => {
+    const pts = poly.map(([px, py]) => ({
+      x: (px / 100) * canvas.width,
+      y: (py / 100) * canvas.height
+    }));
+    drawSmoothBlob(pts);
+    ctx.fill();
+  });
+}
+
+// Whether the Voronoi library loaded successfully. If not, we fall back to
+// the simple circle-marker map further below so the game still works.
+const hasVoronoi = typeof d3 !== "undefined" && !!d3.Delaunay;
+
+function buildVoronoi() {
+  const total = state.countries.length;
+  const points = [];
+  for (let id = 0; id < total; id++) {
+    const p = territoryPos(id);
+    points.push([p.x, p.y]);
+  }
+  const delaunay = d3.Delaunay.from(points);
+  return delaunay.voronoi([0, 0, canvas.width, canvas.height]);
+}
+document.getElementById("soloBtn").onclick = () => findMatch(true);
+document.getElementById("onlineBtn").onclick = () => findMatch(false);
+document.getElementById("playAgainBtn").onclick = () => location.reload();
+
+// ---- Opening protection: first 45s, players can only attack unoccupied states ----
+const PROTECTION_MS = 45000;
+let gameStartAt = 0;
+const protectionLeft = () => Math.max(0, gameStartAt + PROTECTION_MS - Date.now());
+(function () {
+  const st = document.createElement("style");
+  st.textContent = `#protPill { position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:30; display:none; padding:6px 14px; border-radius:999px;
+    font:600 12px 'Inter',sans-serif; color:#f2c96b; background:rgba(16,20,29,.88); border:1px solid rgba(212,169,74,.5); pointer-events:none; white-space:nowrap; }`;
+  document.head.appendChild(st);
+  const pill = document.createElement("div"); pill.id = "protPill"; document.body.appendChild(pill);
+  setInterval(() => {
+    const left = protectionLeft(), inGame = gameDiv.style.display === "flex" && roomId && !surrendered;
+    if (inGame && left > 0) { pill.style.display = "block"; pill.textContent = `🛡️ Expand into empty states — player attacks unlock in ${Math.ceil(left / 1000)}s`; }
+    else if (pill.style.display !== "none") {
+      if (inGame && gameStartAt && Date.now() - gameStartAt < PROTECTION_MS + 3000) { pill.style.display = "block"; pill.textContent = "⚔️ Player attacks are now open!"; }
+      else pill.style.display = "none";
+    }
+  }, 250);
+})();
+
+let botDifficulty = getStored("botDifficulty") || "normal";
+(function () {
+  const row = document.getElementById("diffRow");
+  function paint() {
+    row.innerHTML = "";
+    [["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"]].forEach(([k, label]) => {
+      const b = document.createElement("button");
+      b.textContent = label; b.className = k === botDifficulty ? "on" : "";
+      b.onclick = () => { botDifficulty = k; setStored("botDifficulty", k); paint(); };
+      row.appendChild(b);
+    });
+  }
+  paint();
+})();
+
+function findMatch(solo) {
+  if (SERVER_NOT_CONFIGURED) {
+    statusEl.textContent =
+      "No game server configured yet. Deploy server/server.js (e.g. to Render), then set SERVER_URL " +
+      "in index.html to that URL - or test it right now by opening this page with " +
+      "?server=https://your-url added to the address bar.";
+    return;
+  }
+  if (!socket) {
+    statusEl.textContent = "Not connected to the game server yet.";
+    return;
+  }
+  statusEl.textContent = solo ? "Starting solo game..." : "Searching for players...";
+  const displayName = currentProfile?.displayName || "Player";
+  isSoloGame = !!solo;
+  socket.emit("findMatch", { soloMode: solo, displayName, maxPlayers: 4, map: selectedMap, difficulty: botDifficulty, botDifficulty });
+}
+
+// Surrender button (replaces Leave Game) - wired in the SURRENDER block below
+
+
+if (socket) {
+socket.on("waiting", (info) => {
+  const needed = info?.needed || 4;
+  const current = info?.current || 1;
+  statusEl.textContent = `Waiting for other players (${current}/${needed})... bots will fill in after 10s`;
+});
+
+socket.on("matchFound", (data) => {
+  roomId = data.roomId;
+  myId = data.playerId;
+  state = data.state;
+  myLobbyCode = null;
+  currentLobbyData = null;
+  menu.style.display = "none";
+  customSetupScreen.style.display = "none";
+  customLobbyScreen.style.display = "none";
+  gameDiv.style.display = "flex";
+  resizeCanvas();
+  draw();
+  Object.keys(reloadAt).forEach((k) => delete reloadAt[k]);
+  surrendered = false;
+  gameStartAt = Date.now();
+  startFxLoop();
+  if (isSoloGame) ChatUI.stop(); else ChatUI.start();
+});
+}
+
+if (socket) {
+socket.on("gameState", (newState) => {
+  const prev = state;
+  state = newState;
+  if (window.TradeSync) TradeSync.apply(state);   // overlay accepted trades on server ownership
+  detectCaptures(prev, state);
+  draw();
+});
+
+socket.on("troopMove", ({ from, to, amount, owner, duration }) => {
+  // after a trade the server still names the old owner - use the state's current owner
+  if (state && state.owners && state.owners[from]) owner = state.owners[from];
+  if (state && state.owners && state.owners[to] === myId && owner !== myId) {
+    const me = state.players && state.players[myId], atk = state.players && state.players[owner];
+    const teammate = state.mode === "teams" && me && atk && me.team === atk.team;
+    if (!teammate) {
+      SFX.siren();
+      alertFx.push({ id: to, start: performance.now(), dur: duration || 1500 });
+      if (typeof turnInfo !== "undefined" && state.countries[to]) turnInfo.textContent = `⚠ ${state.countries[to].name} is under attack!`;
+    }
+  }
+  // Troops are now actually in transit for `duration` ms (based on real
+  // distance) before the attack/reinforce effect applies on arrival.
+  spawnMoveAnimation(from, to, amount, owner, duration);
+});
+
+socket.on("gameOver", ({ winners, names, teamMode }) => {
+  if (surrendered) return;   // already showed the surrender result
+  banner.style.display = "block";
+  const didWin = Array.isArray(winners) && winners.includes(myId);
+  if (didWin) SFX.win(); else SFX.lose();
+  const winnerNames = (names && names.length) ? names.join(", ") : "An opponent";
+  bannerText.textContent = didWin
+    ? (teamMode ? "🏆 Your team conquered the map!" : "🏆 You conquered the map!")
+    : (teamMode ? `Team ${winnerNames} won the game.` : `${winnerNames} won the game.`);
+  recordGameResult(didWin).then(() => {
+    if (currentProfile) profileStats.textContent = `${currentProfile.wins} wins / ${currentProfile.gamesPlayed} games`;
+  });
+});
+} // end if (socket)
+
+// ---- Marching-dots animation for attacks/reinforcements ----
+let moveAnimations = [];
+let animLoopRunning = false;
+
+function spawnMoveAnimation(from, to, amount, owner, duration) {
+  if (!state || !state.countries) return;
+  const dotCount = Math.max(2, Math.min(8, Math.round(amount / 4)));
+  const color = (owner && state.players[owner]) ? state.players[owner].color : "#fff";
+  moveAnimations.push({
+    from, to, color,
+    dotCount,
+    start: performance.now(),
+    // whether it's really a reinforcement isn't known until the troops land
+    // (target owner can change mid-flight), so it's decided once at arrival
+    duration: duration || 1500
+  });
+  SFX.launch();
+  setTimeout(() => { SFX.impact(); shakeUntil = performance.now() + 240; }, duration || 1500);
+  if (!animLoopRunning) {
+    animLoopRunning = true;
+    requestAnimationFrame(animationLoop);
+  }
+}
+
+function animationLoop(now) {
+  moveAnimations = moveAnimations.filter((a) => now - a.start < a.duration);
+  draw();
+  if (moveAnimations.length > 0) {
+    requestAnimationFrame(animationLoop);
+  } else {
+    animLoopRunning = false;
+  }
+}
+
+function drawMissile(x, y, ang, color, sc) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(ang); ctx.scale(sc, sc);
+  const fl = 14 + Math.random() * 8;                       // exhaust flame
+  const fg = ctx.createLinearGradient(-9, 0, -9 - fl, 0);
+  fg.addColorStop(0, "#fffbe0"); fg.addColorStop(0.35, "#ffb43a"); fg.addColorStop(1, "rgba(255,70,20,0)");
+  ctx.fillStyle = fg;
+  ctx.beginPath(); ctx.moveTo(-8, -3.5); ctx.lineTo(-9 - fl, 0); ctx.lineTo(-8, 3.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = color;                                    // fins
+  ctx.beginPath(); ctx.moveTo(-2, -3.5); ctx.lineTo(-10, -9); ctx.lineTo(-10, -3.5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-2, 3.5); ctx.lineTo(-10, 9); ctx.lineTo(-10, 3.5); ctx.closePath(); ctx.fill();
+  ctx.shadowColor = color; ctx.shadowBlur = 16;             // body
+  ctx.fillStyle = "#eef2f8";
+  ctx.beginPath(); ctx.moveTo(16, 0); ctx.quadraticCurveTo(9, -4.5, 2, -3.8); ctx.lineTo(-9, -3.8);
+  ctx.lineTo(-9, 3.8); ctx.lineTo(2, 3.8); ctx.quadraticCurveTo(9, 4.5, 16, 0); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = color;                                    // team band + nose
+  ctx.fillRect(-5, -3.8, 6, 7.6);
+  ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(9, -3.4); ctx.lineTo(9, 3.4); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath(); ctx.moveTo(16, 0); ctx.quadraticCurveTo(9, -4.5, 2, -3.8); ctx.lineTo(-9, -3.8); ctx.stroke();
+  ctx.restore();
+}
+
+function drawMoveAnimations(now) {
+  if (!state || !state.countries) return;
+  const sc = Math.max(0.95, Math.min(1.5, Math.min(canvas.width, canvas.height) / 560));
+  moveAnimations.forEach((a) => {
+    const from = territoryPos(a.from), to = territoryPos(a.to);
+    const t = Math.min(1, (now - a.start) / a.duration);
+    const ang = Math.atan2(to.y - from.y, to.x - from.x);
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+
+    ctx.save();                                              // flight path
+    ctx.setLineDash([6, 9]); ctx.lineDashOffset = -now / 40;
+    ctx.lineWidth = 1.5; ctx.strokeStyle = a.color; ctx.globalAlpha = 0.22;
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    ctx.restore();
+
+    if (t < 0.12) {                                           // launch flash
+      ctx.save(); ctx.globalAlpha = 1 - t / 0.12;
+      const gg = ctx.createRadialGradient(from.x, from.y, 0, from.x, from.y, 34 * sc);
+      gg.addColorStop(0, "rgba(255,240,180,0.9)"); gg.addColorStop(1, "rgba(255,140,40,0)");
+      ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(from.x, from.y, 34 * sc, 0, 6.283); ctx.fill(); ctx.restore();
+    }
+    for (let i = 0; i < a.dotCount; i++) {
+      const dt = t - i * 0.05;
+      if (dt < 0 || dt > 1) continue;
+      const off = (i - (a.dotCount - 1) / 2) * 9 * sc;       // fan the salvo out
+      const px = from.x + (to.x - from.x) * dt - dy * off;
+      const py = from.y + (to.y - from.y) * dt + dx * off;
+      for (let k = 7; k >= 1; k--) {                         // smoke trail
+        ctx.beginPath();
+        ctx.arc(px - dx * k * 8 * sc, py - dy * k * 8 * sc, (2 + k * 0.55) * sc, 0, Math.PI * 2);
+        ctx.fillStyle = k < 5 ? a.color : "rgb(215,222,235)";
+        ctx.globalAlpha = 0.28 * (1 - k / 8);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      drawMissile(px, py, ang, a.color, sc);
+    }
+
+    if (t > 0.86) {                                           // impact burst
+      const r = (t - 0.86) / 0.14;
+      ctx.save();
+      ctx.globalAlpha = 1 - r;
+      ctx.lineWidth = 4 * (1 - r) + 1; ctx.strokeStyle = a.color;
+      ctx.shadowColor = "#ffb43a"; ctx.shadowBlur = 20;
+      ctx.beginPath(); ctx.arc(to.x, to.y, (10 + r * 42) * sc, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(255,200,90,0.5)";
+      ctx.beginPath(); ctx.arc(to.x, to.y, (6 + r * 18) * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  });
+  ctx.globalAlpha = 1;
+}
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 50;
+  draw();
+}
+window.addEventListener("resize", resizeCanvas);
+
+// Position of a territory in actual canvas pixels, from its percentage x/y.
+function territoryPos(id) {
+  const c = state.countries[id];
+  return { x: (c.x / 100) * canvas.width, y: (c.y / 100) * canvas.height };
+}
+
+// Marker radius scales gently with troop count so bigger armies stand out.
+function territoryRadius(id) {
+  const base = Math.min(canvas.width, canvas.height) * 0.02;
+  const troops = state.troops[id] || 0;
+  return Math.max(base, Math.min(base * 2.4, base + troops * 0.35));
+}
+
+function nearestTerritory(px, py) {
+  let best = null, bestDist = Infinity;
+  const total = state.countries.length;
+  for (let id = 0; id < total; id++) {
+    const p = territoryPos(id);
+    const d = Math.hypot(p.x - px, p.y - py);
+    if (d < bestDist) { bestDist = d; best = id; }
+  }
+  if (hasVoronoi) return best; // whole canvas is tiled, any point belongs to some cell
+  // circle-marker fallback: require the tap to be reasonably close to the marker
+  return bestDist <= territoryRadius(best) + 24 ? best : null;
+}
+
+
+// ================= GRAPHICS =================
+function shade(color, amt) { // amt: -1 (black) .. 0 .. +1 (white)
+  ctx.fillStyle = color;
+  const c = ctx.fillStyle;
+  let r, g, b;
+  if (c[0] === "#") { r = parseInt(c.slice(1,3),16); g = parseInt(c.slice(3,5),16); b = parseInt(c.slice(5,7),16); }
+  else { const m = c.match(/[\d.]+/g).map(Number); r = m[0]; g = m[1]; b = m[2]; }
+  const t = amt < 0 ? 0 : 255, k = Math.abs(amt);
+  return `rgb(${Math.round((t-r)*k+r)},${Math.round((t-g)*k+g)},${Math.round((t-b)*k+b)})`;
+}
+
+function drawOcean() {
+  const w = canvas.width, h = canvas.height;
+  const g = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.1, w/2, h/2, Math.max(w,h)*0.8);
+  g.addColorStop(0, MAPS[selectedMap].bg0);
+  g.addColorStop(1, MAPS[selectedMap].bg1);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // faint chart grid
+  ctx.strokeStyle = "rgba(140,190,255,0.05)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < w; x += 48) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, h); }
+  for (let y = 0; y < h; y += 48) { ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); }
+  ctx.stroke();
+}
+
+const patCache = {};
+function getPattern(key) {
+  if (key in patCache) return patCache[key];
+  const T = MAPS[key];
+  if (!T.pattern) return (patCache[key] = null);
+  const c = document.createElement("canvas"); c.width = c.height = 24;
+  const g = c.getContext("2d");
+  g.fillStyle = g.strokeStyle = T.patternColor;
+  if (T.pattern === "dots") {
+    [[4,5],[15,9],[9,18],[20,20],[2,14]].forEach(([x,y]) => { g.beginPath(); g.arc(x,y,1.1,0,6.3); g.fill(); });
+  } else if (T.pattern === "embers") {
+    [[4,5,1.6],[15,9,1],[9,18,1.3],[20,21,0.9],[21,4,1.1]].forEach(([x,y,r]) => { g.beginPath(); g.arc(x,y,r,0,6.3); g.fill(); });
+  } else if (T.pattern === "lines") {
+    g.lineWidth = 1; g.beginPath();
+    g.moveTo(0,24); g.lineTo(24,0); g.moveTo(-12,24); g.lineTo(12,0); g.moveTo(12,24); g.lineTo(36,0); g.stroke();
+  } else if (T.pattern === "grid") {
+    g.lineWidth = 1; g.beginPath(); g.moveTo(.5,0); g.lineTo(.5,24); g.moveTo(0,.5); g.lineTo(24,.5); g.stroke();
+  }
+  return (patCache[key] = ctx.createPattern(c, "repeat"));
+}
+
+function tracePoly(poly) {
+  ctx.beginPath();
+  poly.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+  ctx.closePath();
+}
+
+function pill(x, y, w, h) {
+  const r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x - w/2 + r, y - r);
+  ctx.lineTo(x + w/2 - r, y - r);
+  ctx.arc(x + w/2 - r, y, r, -Math.PI/2, Math.PI/2);
+  ctx.lineTo(x - w/2 + r, y + r);
+  ctx.arc(x - w/2 + r, y, r, Math.PI/2, Math.PI*1.5);
+  ctx.closePath();
+}
+
+function drawCells(voronoi, total, validTargets) {
+  const polys = [];
+  ctx.lineJoin = "round";
+
+  // pass 1: territory fills with depth (radial light + inner shadow + rim light)
+  for (let id = 0; id < total; id++) {
+    const poly = voronoi.cellPolygon(id);
+    polys[id] = poly;
+    if (!poly) continue;
+    const owner = state.owners[id] ? state.players[state.owners[id]] : null;
+    const T = MAPS[selectedMap];
+    const base = owner ? owner.color : T.neutral;
+    const { x, y } = territoryPos(id);
+    let rad = 0;
+    poly.forEach(([px, py]) => { rad = Math.max(rad, Math.hypot(px - x, py - y)); });
+
+    const grad = ctx.createRadialGradient(x, y - rad*0.25, 0, x, y, Math.max(rad, 1));
+    grad.addColorStop(0, shade(base, owner ? 0.14 : 0.08));
+    grad.addColorStop(0.65, shade(base, owner ? 0.0 : -0.1));
+    grad.addColorStop(1, shade(base, -0.16));
+    tracePoly(poly);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.save();
+    tracePoly(poly);
+    ctx.clip();
+    const pat = getPattern(selectedMap);
+    if (pat && !owner) { ctx.globalAlpha = 0.5; ctx.fillStyle = pat; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1; }
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(0,0,0,0.14)";   // inner shadow toward the edges
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = owner ? shade(base, 0.55) : T.rim; // rim light
+    ctx.globalAlpha = 0.25;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // pass 2: crisp dark borders so every cell reads clearly
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = MAPS[selectedMap].border;
+  for (let id = 0; id < total; id++) {
+    if (!polys[id]) continue;
+    tracePoly(polys[id]);
+    ctx.stroke();
+  }
+
+  // pass 3: targets + selection (drawn above neighbours' borders)
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+  if (selected !== null) {
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(242,201,107,0.22)";
+    validTargets.forEach((id) => { if (polys[id]) { tracePoly(polys[id]); ctx.stroke(); } });
+    if (polys[selected]) {
+      ctx.save();
+      tracePoly(polys[selected]);
+      ctx.fillStyle = `rgba(255,255,255,${0.10 + pulse * 0.10})`;
+      ctx.fill();
+      ctx.shadowColor = "#f2c96b";
+      ctx.shadowBlur = 10 + pulse * 18;
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = "#fff6d8";
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // red alert on territories of yours that are under attack
+  const nowA = performance.now();
+  alertFx = alertFx.filter((f) => nowA - f.start < f.dur + 800);
+  alertFx.forEach((f) => {
+    if (!polys[f.id]) return;
+    const pls = 0.5 + 0.5 * Math.sin(nowA / 110);
+    tracePoly(polys[f.id]);
+    ctx.fillStyle = `rgba(255,40,40,${0.12 + 0.2 * pls})`; ctx.fill();
+    ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(255,70,60,${0.5 + 0.5 * pls})`;
+    ctx.shadowColor = "#ff2a2a"; ctx.shadowBlur = 14; ctx.stroke(); ctx.restore();
+  });
+
+  // capture effects: white flash + expanding shock ring
+  const nowT = performance.now();
+  captureFx = captureFx.filter((f) => nowT - f.start < 1000);
+  captureFx.forEach((f) => {
+    const k = (nowT - f.start) / 1000, pos = territoryPos(f.id);
+    if (polys[f.id]) { tracePoly(polys[f.id]); ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - k)})`; ctx.fill(); }
+    ctx.save();
+    ctx.strokeStyle = f.color; ctx.globalAlpha = 1 - k; ctx.lineWidth = 4 * (1 - k) + 1;
+    ctx.shadowColor = f.color; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 12 + k * 85, 0, 6.283); ctx.stroke();
+    ctx.restore();
+  });
+
+  // pass 4: labels - country name + troop badge
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let id = 0; id < total; id++) {
+    const { x, y } = territoryPos(id);
+    const owner = state.owners[id] ? state.players[state.owners[id]] : null;
+    const ring = owner ? shade(owner.color, 0.5) : "rgba(180,195,220,0.6)";
+
+    {
+      ctx.save();
+      ctx.font = "600 10px Inter, Arial, sans-serif";
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillText(state.countries[id].name, x, y - 15);
+      ctx.restore();
+    }
+
+    const txt = String(state.troops[id]);
+    ctx.font = "700 12px Inter, Arial, sans-serif";
+    const w = Math.max(24, ctx.measureText(txt).width + 14);
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    pill(x, y + 3, w, 18);
+    ctx.fillStyle = "rgba(7,12,22,0.78)";
+    ctx.fill();
+    ctx.restore();
+    pill(x, y + 3, w, 18);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(txt, x, y + 3.5);
+  }
+}
+
+const ATTACK_COOLDOWN = 7000;   // ms each of your territories must reload after attacking an enemy
+const reloadAt = {};            // territory id -> time its reload finishes
+let alertFx = [];
+let shakeUntil = 0, captureFx = [], fxRunning = false, lastFx = 0;
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  const left = shakeUntil - performance.now();
+  if (left > 0) { const m = 3.5 * (left / 240); ctx.translate((Math.random() - .5) * 2 * m, (Math.random() - .5) * 2 * m); }
+  drawFrame();
+  ctx.restore();
+}
+function drawCooldown() {
+  const now = performance.now();
+  Object.keys(reloadAt).forEach((id) => {
+    const left = reloadAt[id] - now;
+    if (left <= 0) { delete reloadAt[id]; return; }
+    if (!state || !state.countries || !state.countries[id] || state.owners[id] !== myId) return;
+    const { x, y } = territoryPos(+id), k = 1 - left / ATTACK_COOLDOWN;
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath(); ctx.arc(x, y + 3, 17, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "#f2c96b"; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(x, y + 3, 17, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+    ctx.font = "700 9px Inter, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 3; ctx.fillStyle = "#ffe9a8";
+    ctx.fillText(Math.ceil(left / 1000) + "s", x, y + 26);
+    ctx.restore();
+  });
+}
+function startFxLoop() {            // smooth ~30fps loop for ambient motion, pulses and effects
+  if (fxRunning) return;
+  fxRunning = true;
+  const loop = (now) => {
+    requestAnimationFrame(loop);
+    if (!state || !state.countries || gameDiv.style.display !== "flex") return;
+    if (now - lastFx > 33) { lastFx = now; draw(); }
+  };
+  requestAnimationFrame(loop);
+}
+function detectCaptures(prev, next) {
+  if (!prev || !prev.owners || !next.owners) return;
+  Object.keys(next.owners).forEach((id) => {
+    const o = next.owners[id];
+    if (o && prev.owners[id] !== o && next.players && next.players[o]) {
+      captureFx.push({ id: +id, color: next.players[o].color, start: performance.now() });
+      if (o === myId) SFX.capture(); else if (prev.owners[id] === myId) SFX.lost();
+    }
+  });
+}
+const PART = {
+  classic:  { c: "200,220,255", vx: .004, vy: -.01, a: .30 }, desert: { c: "255,225,170", vx: .02, vy: -.004, a: .35 },
+  arctic:   { c: "255,255,255", vx: -.006, vy: .03, a: .60 },  volcanic: { c: "255,140,60", vx: .004, vy: -.05, a: .65 },
+  neon:     { c: "0,229,255", vx: 0, vy: -.015, a: .50 }
+};
+let parts = null, lastPT = 0;
+function drawParticles() {
+  const w = canvas.width, h = canvas.height, now = performance.now(), dt = Math.min(0.05, (now - lastPT) / 1000); lastPT = now;
+  if (!parts) parts = Array.from({ length: 55 }, () => ({ x: Math.random(), y: Math.random(), r: .7 + Math.random() * 1.8, s: .5 + Math.random() }));
+  const P = PART[selectedMap] || PART.classic;
+  parts.forEach((p) => {
+    p.x += P.vx * p.s * dt * 6 + Math.sin(now / 900 + p.y * 10) * 0.0005;
+    p.y += P.vy * p.s * dt * 6;
+    if (p.x < 0) p.x += 1; if (p.x > 1) p.x -= 1; if (p.y < 0) p.y += 1; if (p.y > 1) p.y -= 1;
+    ctx.fillStyle = `rgba(${P.c},${P.a * (0.5 + 0.5 * Math.sin(now / 600 + p.x * 20))})`;
+    ctx.beginPath(); ctx.arc(p.x * w, p.y * h, p.r, 0, 6.283); ctx.fill();
+  });
+}
+
+// keeps the selected territory pulsing
+let pulseRunning = false;
+function pulseLoop() {
+  if (selected === null || !state) { pulseRunning = false; return; }
+  draw();
+  requestAnimationFrame(pulseLoop);
+}
+function ensurePulse() { return; }
+function _unusedPulse() {
+  if (!pulseRunning && selected !== null) { pulseRunning = true; requestAnimationFrame(pulseLoop); }
+}
+
+let warnedStaleServer = false;
+function drawFrame() {
+  if (!state) return;
+  if (!state.countries || !state.adjacency) {
+    if (!warnedStaleServer) {
+      warnedStaleServer = true;
+      statusEl.textContent =
+        "The game server is running an older version (no country map data). Redeploy/restart server.js with the latest version, then try again.";
+      turnInfo.textContent = "Server needs to be updated - see message below the menu after reload.";
+    }
+    return;
+  }
+
+  drawOcean();
+
+  if (!hasVoronoi) {
+    // Fallback only: real continent shapes, used if the Voronoi library failed to load
+    drawWorldBackdrop();
+  }
+
+  // legend
+  legend.innerHTML = "";
+  const isTeamMode = state.mode === "teams";
+  Object.values(state.players).forEach((p) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const alive = p.alive !== false;
+    const teamLabel = isTeamMode ? ` (Team ${p.team + 1})` : "";
+    item.innerHTML = `<span class="dot" style="background:${p.color}"></span>${p.name}${teamLabel}${p.id === myId ? " (you)" : ""}${!alive ? " ☠" : ""}`;
+    legend.appendChild(item);
+  });
+
+  const total = state.countries.length;
+  // Borders no longer restrict targets - every other territory on the map
+  // counts as a valid (highlightable) attack/reinforce target.
+  const validTargets =
+    selected !== null
+      ? Array.from({ length: total }, (_, i) => i).filter((i) => i !== selected)
+      : [];
+
+  if (hasVoronoi) {
+    // ---- state.io-style tiled cell map ----
+    let voronoi;
+    try { voronoi = buildVoronoi(); } catch (err) { voronoi = null; }
+
+    if (voronoi) drawCells(voronoi, total, validTargets);
+  } else {
+    // ---- Fallback: circle markers + border lines (used only if the Voronoi lib failed) ----
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1.5;
+    const drawn = new Set();
+    for (let id = 0; id < total; id++) {
+      (state.adjacency[id] || []).forEach((n) => {
+        const key = id < n ? id + "-" + n : n + "-" + id;
+        if (drawn.has(key)) return;
+        drawn.add(key);
+        const a = territoryPos(id), b = territoryPos(n);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+    }
+
+    for (let id = 0; id < total; id++) {
+      const { x, y } = territoryPos(id);
+      const r = territoryRadius(id);
+      const ownerId = state.owners[id];
+      const owner = ownerId ? state.players[ownerId] : null;
+      const isSelected = selected == id;
+      const isValidTarget = selected !== null && validTargets.includes(id);
+
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = owner ? owner.color : "#4a5568";
+      ctx.globalAlpha = isSelected ? 1 : 0.9;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.lineWidth = isSelected ? 3 : (isValidTarget ? 2.5 : 1.5);
+      ctx.strokeStyle = isSelected ? "#fff" : (isValidTarget ? "#ffd43b" : "#0b1a2b");
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "10px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(state.countries[id].name, x, y - r - 7);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 13px Arial";
+      ctx.fillText(state.troops[id], x, y);
+    }
+  }
+
+  drawMoveAnimations(performance.now());
+  drawCooldown();
+  ensurePulse();
+}
+
+canvas.addEventListener("click", (e) => {
+  if (!state || !state.countries || !state.adjacency) return;
+  const id = nearestTerritory(e.offsetX, e.offsetY);
+  if (id === null) return;
+
+  if (selected === null) {
+    const canSrc = state.owners[id] === myId;
+    if (canSrc) {
+      selected = id;
+      SFX.select();
+      turnInfo.textContent = `Selected ${state.countries[id].name} (${state.troops[id]} troops). Tap any country to send troops (your own = reinforce, tap ${state.countries[id].name} again to deselect).`;
+      draw();
+    }
+  } else {
+    if (id === selected) {
+      selected = null;
+      draw();
+      return;
+    }
+
+    // Tapping ANY other territory - including one of your own - now sends
+    // troops there. Sending to your own (or a teammate's) territory
+    // reinforces it; sending anywhere else attacks it. To pick a different
+    // source territory instead, tap the currently selected one again first
+    // to deselect it, then tap the new source.
+    // Reload only applies to attacking someone else's state - sending troops
+    // to your own (or a teammate's) state is free and instant.
+    const nowC = performance.now();
+    const tgtOwner = state.owners[id];
+    const meP = state.players[myId], tgtP = tgtOwner ? state.players[tgtOwner] : null;
+    const friendly = tgtOwner === myId || (state.mode === "teams" && meP && tgtP && meP.team === tgtP.team);
+    if (!friendly && tgtOwner && protectionLeft() > 0) {   // opening rule: only unoccupied states may be attacked
+      SFX.denied();
+      turnInfo.textContent = `🛡️ Players can't be attacked yet — ${Math.ceil(protectionLeft() / 1000)}s left. Capture empty states!`;
+      return;
+    }
+    if (!friendly) {
+      const readyAt = reloadAt[selected] || 0;
+      if (nowC < readyAt) {
+        SFX.denied();
+        turnInfo.textContent = `${state.countries[selected].name} is reloading... ${Math.ceil((readyAt - nowC) / 1000)}s`;
+        return;
+      }
+      reloadAt[selected] = nowC + ATTACK_COOLDOWN;
+    }
+    const amount = Math.floor(state.troops[selected] * 0.7);
+    socket.emit("attack", { roomId, from: selected, to: id, amount });
+    selected = null;
+    turnInfo.textContent = "Tap your territory, then tap any territory (even your own) to send troops there";
+    draw();
+  }
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      // Non-fatal - the game still works fine without the service worker,
+      // it just won't be installable/offline-capable in that case.
+    });
+  });
+}
+</script>
+<script>
+// ================= SOUND (synthesised - no asset files) =================
+const SFX = (() => {
+  let ac = null, master = null, muted = false, wantMusic = false, mOn = false, mg = null, pads = [], mTimer = null, ci = 0;
+  const last = {};
+  try { muted = localStorage.getItem("sc_muted") === "1"; } catch (e) {}
+  const ok = (k, ms) => { const n = performance.now(); if (last[k] && n - last[k] < ms) return false; last[k] = n; return true; };
+  function ensure() {
+    if (!ac) {
+      try {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        const comp = ac.createDynamicsCompressor();
+        master = ac.createGain(); master.gain.value = muted ? 0 : 0.8;
+        master.connect(comp); comp.connect(ac.destination);
+      } catch (e) { ac = null; }
+    }
+    if (ac && ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(f, dur, type = "sine", vol = 0.1, slide = null, delay = 0) {
+    if (!ensure()) return;
+    const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function noise(dur, vol, f0, f1, type = "lowpass", delay = 0) {
+    if (!ensure()) return;
+    const t = ac.currentTime + delay, n = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(fl); fl.connect(g); g.connect(master); src.start(t);
+  }
+  function music() {}   // background music removed
+  const api = {
+    ensure, music,
+    click:  () => { if (ok("c", 40)) { tone(560, 0.07, "square", 0.05, 380); } },
+    hover:  () => { if (ok("h", 70)) tone(980, 0.035, "sine", 0.02); },
+    select: () => { tone(660, 0.07, "triangle", 0.09); tone(990, 0.09, "triangle", 0.08, null, 0.06); },
+    launch: () => { if (!ok("l", 90)) return; noise(0.55, 0.16, 500, 3200, "bandpass"); tone(150, 0.5, "sawtooth", 0.05, 600); },
+    impact: () => { if (!ok("i", 90)) return; noise(0.7, 0.4, 2200, 120); tone(130, 0.55, "sine", 0.4, 38); tone(70, 0.4, "square", 0.08, 30); },
+    capture:() => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.1, null, i * 0.07)); },
+    lost:   () => { tone(220, 0.3, "sawtooth", 0.07, 110); },
+    win:    () => { [523, 659, 784, 1047, 784, 1047, 1318].forEach((f, i) => tone(f, 0.3, "triangle", 0.12, null, i * 0.12)); noise(1.2, 0.08, 6000, 800, "highpass", 0.8); },
+    lose:   () => { [392, 349, 311, 262].forEach((f, i) => tone(f, 0.45, "sawtooth", 0.07, f * 0.97, i * 0.22)); },
+    siren: () => {
+      if (!ok("s", 4000) || !ensure()) return;
+      const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+      const lfo = ac.createOscillator(), lg = ac.createGain();
+      o.type = "sawtooth"; o.frequency.value = 720;
+      lfo.frequency.value = 1.4; lg.gain.value = 170; lfo.connect(lg); lg.connect(o.frequency);   // wailing pitch sweep
+      f.type = "lowpass"; f.frequency.value = 2400;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.1);
+      g.gain.setValueAtTime(0.2, t + 1.9); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+      o.connect(f); f.connect(g); g.connect(master);
+      o.start(t); lfo.start(t); o.stop(t + 2.4); lfo.stop(t + 2.4);
+    },
+    chat: () => { if (ok("m", 120)) tone(880, 0.08, "sine", 0.06, 1100); },
+    denied: () => { if (ok("d", 150)) tone(180, 0.12, "square", 0.06, 120); },
+    get muted() { return muted; },
+    toggleMute() {
+      muted = !muted; try { localStorage.setItem("sc_muted", muted ? "1" : "0"); } catch (e) {}
+      ensure(); if (master) master.gain.setTargetAtTime(muted ? 0 : 0.8, ac.currentTime, 0.05); return muted;
+    }
+  };
+  return api;
+})();
+
+(function () {
+  const mb = document.getElementById("muteBtn");
+  const paint = () => { mb.textContent = SFX.muted ? "🔇" : "🔊"; };
+  paint();
+  mb.addEventListener("click", (e) => { e.stopPropagation(); SFX.toggleMute(); paint(); });
+  let started = false;
+  document.addEventListener("pointerdown", () => { if (!started) { started = true; SFX.ensure(); } }, { capture: true });
+  document.addEventListener("click", (e) => { if (e.target.closest("button") && e.target.id !== "muteBtn") SFX.click(); }, true);
+  document.addEventListener("mouseover", (e) => { if (e.target.closest && e.target.closest(".menuPanel > button, .mapBtn, .countBtn, .modeBtn")) SFX.hover(); });
+})();
+
+// ================= MENU BACKGROUND: drifting map network + radar sweep =================
+(function () {
+  const c = document.getElementById("menuBg"), g = c.getContext("2d");
+  let w = 0, h = 0, nodes = [];
+  function size() {
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    nodes = Array.from({ length: Math.min(80, Math.floor(w * h / 20000)) }, () => ({
+      x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - .5) * .3, vy: (Math.random() - .5) * .3, r: 1 + Math.random() * 2 }));
+  }
+  size(); addEventListener("resize", size);
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (typeof gameDiv !== "undefined" && gameDiv.style.display === "flex") { c.style.display = "none"; return; }
+    c.style.display = "block"; g.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h * 0.5, R = Math.max(w, h) * 0.7;
+    g.strokeStyle = "rgba(212,169,74,0.07)"; g.lineWidth = 1;
+    for (let i = 1; i <= 4; i++) { g.beginPath(); g.arc(cx, cy, R * i / 4, 0, 6.283); g.stroke(); }
+    const a = now / 3500;
+    for (let k = 0; k < 40; k++) {                           // radar wedge with fading tail
+      g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a - k * 0.025 - 0.025, a - k * 0.025);
+      g.fillStyle = `rgba(207,74,55,${0.07 * (1 - k / 40)})`; g.fill();
+    }
+    nodes.forEach((n) => { n.x += n.vx; n.y += n.vy; if (n.x < 0) n.x = w; if (n.x > w) n.x = 0; if (n.y < 0) n.y = h; if (n.y > h) n.y = 0; });
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+      if (d < 150) { g.strokeStyle = `rgba(212,169,74,${0.16 * (1 - d / 150)})`; g.beginPath(); g.moveTo(nodes[i].x, nodes[i].y); g.lineTo(nodes[j].x, nodes[j].y); g.stroke(); }
+    }
+    nodes.forEach((n) => { g.fillStyle = "rgba(242,201,107,0.55)"; g.beginPath(); g.arc(n.x, n.y, n.r, 0, 6.283); g.fill(); });
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>
+// ================= CHAT + EMOJI (online games only; relayed through Firebase Realtime DB) =================
+let isSoloGame = false;
+const ChatUI = (() => {
+  const st = document.createElement("style");
+  st.textContent = `
+  #chatRoot { position:fixed; left:12px; bottom:12px; z-index:40; font-family:'Inter',sans-serif; }
+  #chatRoot button { width:auto; padding:0; letter-spacing:0; text-transform:none; font-family:'Inter',sans-serif; }
+  #chatToggle { width:46px; height:46px; border-radius:50%; font-size:20px; background:rgba(21,26,36,.88); border:1px solid rgba(212,169,74,.5); backdrop-filter:blur(6px); }
+  #chatBadge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; border-radius:9px; background:#cf4a37; color:#fff; font-size:11px; line-height:18px; display:none; }
+  #chatPanel { display:none; position:absolute; left:0; bottom:56px; width:min(86vw,300px); padding:10px; border-radius:12px;
+    background:rgba(15,19,28,.9); border:1px solid rgba(212,169,74,.3); backdrop-filter:blur(12px); box-shadow:0 12px 40px rgba(0,0,0,.5); }
+  #chatLog { height:150px; overflow-y:auto; font-size:12.5px; line-height:1.45; color:#ece3cc; margin-bottom:8px; }
+  #chatLog div { margin-bottom:3px; word-break:break-word; } #chatLog .sys { color:#93a0b8; font-style:italic; }
+  #chatEmojis { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+  #chatEmojis button { width:32px; height:32px; font-size:18px; border-radius:7px; background:rgba(255,255,255,.07); border:none; }
+  #chatEmojis button:hover { background:rgba(255,255,255,.18); }
+  #chatRow { display:flex; gap:6px; }
+  #chatInput { flex:1; min-width:0; padding:8px 10px; border-radius:7px; border:1px solid rgba(212,169,74,.3); background:#151a24; color:#ece3cc; font-size:13px; outline:none; }
+  #chatSend { width:38px; border-radius:7px; background:linear-gradient(180deg,#cf4a37,#9c342a); color:#fff; border:none; }
+  .floatEmoji { position:fixed; z-index:60; pointer-events:none; text-align:center; font-size:56px; animation:riseFade 2.4s ease-out forwards; text-shadow:0 4px 18px rgba(0,0,0,.5); }
+  .floatEmoji small { display:block; font-size:12px; font-family:'Inter',sans-serif; color:#fff; }
+  @keyframes riseFade { 0%{opacity:0; transform:translateY(20px) scale(.6)} 15%{opacity:1; transform:translateY(0) scale(1.15)} 100%{opacity:0; transform:translateY(-150px) scale(1)} }`;
+  document.head.appendChild(st);
+  const root = document.createElement("div");
+  root.id = "chatRoot"; root.style.display = "none";
+  root.innerHTML = `<button id="chatToggle" title="Chat">💬<span id="chatBadge"></span></button>
+    <div id="chatPanel"><div id="chatLog"></div><div id="chatEmojis"></div>
+    <div id="chatRow"><input id="chatInput" maxlength="120" placeholder="Say something..." autocomplete="off"><button id="chatSend">➤</button></div></div>`;
+  document.body.appendChild(root);
+  const $ = (id) => document.getElementById(id);
+  const EMOJIS = ["😀", "😂", "😎", "😡", "😭", "👍", "👏", "🔥", "💀", "🎯", "🛡️", "🏳️"];
+  let ref = null, active = false, open = false, unread = 0, lastSend = 0, ready = false;
+
+  EMOJIS.forEach((e) => { const b = document.createElement("button"); b.textContent = e; b.onclick = () => send(e); $("chatEmojis").appendChild(b); });
+  $("chatToggle").onclick = () => {
+    open = !open; $("chatPanel").style.display = open ? "block" : "none";
+    if (open) { unread = 0; $("chatBadge").style.display = "none"; $("chatLog").scrollTop = 1e9; }
+  };
+  $("chatSend").onclick = () => { send($("chatInput").value); $("chatInput").value = ""; };
+  $("chatInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("chatSend").click(); });
+
+  function line(html, cls) {
+    const d = document.createElement("div"); if (cls) d.className = cls;
+    if (typeof html === "string") d.textContent = html; else d.append(...html);
+    const log = $("chatLog"); log.appendChild(d);
+    while (log.children.length > 60) log.removeChild(log.firstChild);
+    log.scrollTop = 1e9;
+  }
+  function floatEmoji(text, name) {
+    const f = document.createElement("div"); f.className = "floatEmoji";
+    f.style.left = (25 + Math.random() * 50) + "vw"; f.style.bottom = "22vh";
+    f.textContent = text; const sm = document.createElement("small"); sm.textContent = name; f.appendChild(sm);
+    document.body.appendChild(f); setTimeout(() => f.remove(), 2500);
+  }
+  function add(m) {
+    if (!m || typeof m.text !== "string") return;
+    const mine = m.id === myId;
+    const who = document.createElement("b"); who.textContent = (m.name || "Player") + ": "; who.style.color = m.color || "#f2c96b";
+    const txt = document.createElement("span"); txt.textContent = m.text;
+    line([who, txt]);
+    if (ready && !mine) {
+      SFX.chat();
+      if (m.text.length <= 8 && !/[A-Za-z0-9]/.test(m.text)) floatEmoji(m.text, m.name || "");
+      if (!open) { unread++; $("chatBadge").textContent = unread; $("chatBadge").style.display = "block"; }
+    }
+    if (ready && mine && m.text.length <= 8 && !/[A-Za-z0-9]/.test(m.text)) floatEmoji(m.text, "You");
+  }
+  function send(text) {
+    text = (text || "").trim().slice(0, 120);
+    if (!text || !ref || Date.now() - lastSend < 700) return;
+    lastSend = Date.now();
+    const me = (state && state.players && state.players[myId]) || {};
+    const name = me.name || me.displayName || (typeof currentProfile !== "undefined" && currentProfile && currentProfile.displayName) || "Player";
+    db.ref("chats/" + roomId).push({ id: myId, name, color: me.color || "#f2c96b", text, t: firebase.database.ServerValue.TIMESTAMP })
+      .catch(() => line("Chat is blocked by your Firebase rules - see the \"chats\" rule fix.", "sys"));
+  }
+  function stop() { if (ref) { ref.off(); ref = null; } active = false; root.style.display = "none"; }
+  function start() {
+    stop();
+    if (typeof db === "undefined" || !db || !roomId) return;
+    active = true; ready = false; unread = 0; $("chatLog").innerHTML = ""; $("chatBadge").style.display = "none";
+    ref = db.ref("chats/" + roomId).limitToLast(40);
+    ref.on("child_added", (snap) => add(snap.val()), () => line("Chat unavailable (database rules).", "sys"));
+    setTimeout(() => { ready = true; }, 1500);
+    line("Chat connected. Tap an emoji to react!", "sys");
+  }
+  setInterval(() => { root.style.display = (active && typeof gameDiv !== "undefined" && gameDiv.style.display === "flex") ? "block" : "none"; }, 400);
+  return { start, stop };
+})();
+</script>
+<script>
+// ================= SURRENDER =================
+let surrendered = false;
+(function () {
+  const st = document.createElement("style");
+  st.textContent = `
+  #surrenderBtn { position:fixed; right:12px; bottom:12px; z-index:40; width:auto; padding:9px 14px; font-size:11px; letter-spacing:1px; display:none;
+    background:linear-gradient(180deg,#3a4256,#252b3a); border:1px solid rgba(255,255,255,.25); }
+  #surrenderModal { position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(5,8,14,.7); backdrop-filter:blur(4px); }
+  #surrenderModal .box { width:min(88vw,340px); padding:24px 20px; text-align:center; border-radius:14px; background:linear-gradient(180deg,#1d2432,#10141d);
+    border:1px solid rgba(212,169,74,.4); box-shadow:0 20px 60px rgba(0,0,0,.6); animation:fadeUp .3s both; }
+  #surrenderModal h2 { font-size:20px; color:var(--gold-bright); margin-bottom:8px; }
+  #surrenderModal p { color:var(--muted); font-size:13px; margin-bottom:16px; line-height:1.5; }
+  #surrenderModal .row { display:flex; gap:10px; } #surrenderModal button { width:100%; padding:12px 8px; font-size:12px; }
+  #surrenderModal .stay { background:linear-gradient(180deg,#3a4256,#252b3a); border:1px solid rgba(255,255,255,.25); }`;
+  document.head.appendChild(st);
+  const btn = document.createElement("button");
+  btn.id = "surrenderBtn"; btn.textContent = "🏳️ Surrender"; document.body.appendChild(btn);
+  const modal = document.createElement("div");
+  modal.id = "surrenderModal";
+  modal.innerHTML = `<div class="box"><h2>Surrender?</h2><p>You will leave this match and it will count as a loss.</p>
+    <div class="row"><button class="stay">Keep Fighting</button><button class="yes">Surrender</button></div></div>`;
+  document.body.appendChild(modal);
+  btn.onclick = () => { modal.style.display = "flex"; };
+  document.getElementById("leaveGameBtn").onclick = () => { if (!surrendered && roomId) modal.style.display = "flex"; };
+  modal.querySelector(".stay").onclick = () => { modal.style.display = "none"; };
+  modal.querySelector(".yes").onclick = () => {
+    modal.style.display = "none";
+    surrendered = true; selected = null;
+    if (socket && roomId) { socket.emit("surrender", { roomId }); socket.emit("leaveGame", { roomId }); }
+    ChatUI.stop(); SFX.lose();
+    banner.style.display = "block";
+    bannerText.textContent = "🏳️ You surrendered.";
+    recordGameResult(false).then(() => {
+      if (currentProfile) profileStats.textContent = `${currentProfile.wins} wins / ${currentProfile.gamesPlayed} games`;
+    });
+  };
+  btn.style.display = "none";   // the HUD button now does this job
+  setInterval(() => { const lb = document.getElementById("leaveGameBtn"); lb.style.opacity = surrendered ? "0.4" : "1"; lb.disabled = !!surrendered; }, 400);
+})();
+</script>
+<script>
+// ================= TRADING v2 (multi-state swaps, non-blocking popups, live ownership swap) =================
+(function () {
+  const TTL = 20000;
+  const st = document.createElement("style");
+  st.textContent = `
+  #tradeBtn { position:fixed; right:12px; bottom:58px; z-index:40; width:auto; padding:9px 14px; font-size:11px; letter-spacing:1px; display:none;
+    background:linear-gradient(180deg,#3a4256,#252b3a); border:1px solid rgba(255,255,255,.25); }
+  /* compose panel: small, docked, NO backdrop - the map stays fully playable */
+  #tradePanel { position:fixed; right:12px; bottom:100px; z-index:45; display:none; width:min(92vw,340px); max-height:min(58vh,470px); overflow-y:auto;
+    padding:12px 12px 14px; border-radius:12px; background:linear-gradient(180deg,rgba(29,36,50,.97),rgba(16,20,29,.97));
+    border:1px solid rgba(212,169,74,.45); box-shadow:0 14px 40px rgba(0,0,0,.55); animation:tIn .25s both; font-family:'Inter',sans-serif; }
+  #tradePanel .ph { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  #tradePanel .ph b { font-family:'Cinzel',serif; color:var(--gold-bright); font-size:15px; }
+  #tradePanel button.px { width:28px; height:28px; padding:0; font-size:14px; letter-spacing:0; border-radius:50%; background:rgba(255,255,255,.08); border:none; box-shadow:none; }
+  #tradePanel label { display:flex; justify-content:space-between; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--gold); margin:10px 0 5px; font-family:'Cinzel',serif; }
+  #tradePanel label span { color:var(--muted); letter-spacing:0; text-transform:none; font-family:'Inter',sans-serif; }
+  #tradePanel select { width:100%; padding:8px; border-radius:7px; background:#151a24; color:#ece3cc; border:1px solid rgba(212,169,74,.3); font-size:13px; }
+  .tchips { display:flex; flex-wrap:wrap; gap:6px; min-height:30px; }
+  .tchips .none { color:var(--muted); font-size:12px; font-style:italic; padding:6px 2px; }
+  .tchip { width:auto !important; padding:6px 9px !important; font-family:'Inter',sans-serif !important; font-size:12px !important; font-weight:600 !important; letter-spacing:0 !important;
+    text-transform:none !important; border-radius:999px !important; background:rgba(255,255,255,.06) !important; border:1.5px solid var(--c,#888) !important;
+    box-shadow:none !important; display:inline-flex; align-items:center; gap:6px; color:#ece3cc; }
+  .tchip i { font-style:normal; font-size:10.5px; opacity:.75; background:rgba(0,0,0,.35); padding:1px 6px; border-radius:8px; }
+  .tchip.on { background:var(--c,#d4a94a) !important; color:#10141d; }
+  .tchip.on i { background:rgba(0,0,0,.25); color:#fff; opacity:1; }
+  .tchip:hover { transform:none !important; }
+  #tradePanel .sum { margin-top:10px; font-size:12px; color:var(--muted); text-align:center; line-height:1.45; }
+  #tradePanel .row { display:flex; gap:8px; margin-top:10px; }
+  #tradePanel .row button, .tcard .row button { width:100%; padding:10px 6px; font-size:11.5px; letter-spacing:1px; }
+  #tradePanel button:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  .tno { background:linear-gradient(180deg,#3a4256,#252b3a) !important; border:1px solid rgba(255,255,255,.25) !important; }
+  .tyes { background:linear-gradient(180deg,#3f9d5f,#2b6e42) !important; border:1px solid rgba(160,255,190,.45) !important; }
+
+  /* stack of offer cards + toasts: container ignores the pointer, so taps go straight to the map */
+  #tradeStack { position:fixed; top:64px; right:12px; z-index:60; width:min(88vw,310px); display:flex; flex-direction:column; gap:8px; pointer-events:none; font-family:'Inter',sans-serif; }
+  .tcard { pointer-events:auto; padding:11px 12px 12px; border-radius:11px; background:linear-gradient(180deg,rgba(29,36,50,.97),rgba(16,20,29,.97));
+    border:1px solid rgba(212,169,74,.5); box-shadow:0 10px 28px rgba(0,0,0,.5); animation:tIn .28s both; overflow:hidden; position:relative; }
+  .tcard.out { animation:tOut .3s both; }
+  .tcard .th { font-size:13px; margin-bottom:6px; color:#ece3cc; }
+  .tcard .tl { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--gold); margin:7px 0 4px; font-family:'Cinzel',serif; }
+  .tcard .row { display:flex; gap:8px; margin-top:10px; }
+  .tcard .bar { position:absolute; left:0; bottom:0; height:3px; width:100%; background:var(--gold); transform-origin:left; animation:tBar ${TTL}ms linear forwards; }
+  .tcard .tip { font-size:11px; color:var(--muted); margin-top:6px; }
+  .tcard .tchip { cursor:default; }
+  .tnote { pointer-events:none; padding:8px 12px; border-radius:9px; font-size:12.5px; line-height:1.4; color:#ece3cc; background:rgba(15,19,28,.93);
+    border:1px solid rgba(212,169,74,.5); box-shadow:0 6px 18px rgba(0,0,0,.4); animation:tIn .25s both; }
+  .tnote.ok { border-color:rgba(90,200,130,.8); } .tnote.no { border-color:rgba(230,95,85,.85); } .tnote.out { animation:tOut .3s both; }
+  @keyframes tIn { from{opacity:0; transform:translateX(24px)} to{opacity:1; transform:none} }
+  @keyframes tOut { from{opacity:1} to{opacity:0; transform:translateX(24px)} }
+  @keyframes tBar { from{transform:scaleX(1)} to{transform:scaleX(0)} }`;
+  document.head.appendChild(st);
+
+  const btn = document.createElement("button"); btn.id = "tradeBtn"; btn.textContent = "🤝 Trade"; document.body.appendChild(btn);
+  const panel = document.createElement("div"); panel.id = "tradePanel"; document.body.appendChild(panel);
+  const stack = document.createElement("div"); stack.id = "tradeStack"; document.body.appendChild(stack);
+
+  // ---------- helpers ----------
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; };
+  const pname = (id) => { const p = state && state.players && state.players[id]; return esc((p && (p.name || p.displayName)) || "Player"); };
+  const pcolor = (id) => (state && state.players && state.players[id] && state.players[id].color) || "#f2c96b";
+  const cname = (i) => esc(state.countries[i] ? state.countries[i].name : "#" + i);
+  const troops = (i) => (state.troops && state.troops[i]) || 0;
+  const ownedBy = (id) => Object.keys(state.owners).filter((i) => state.owners[i] === id).map(Number);
+  const arr = (a) => (a ? Object.values(a).map(Number) : []);
+  const norm = (o) => ({ ...o, give: arr(o.give), get: arr(o.get) });
+  const summ = (o) => (o.give.map(cname).join(", ") || "nothing") + " ⇄ " + (o.get.map(cname).join(", ") || "nothing");
+  const chip = (id, color, on) => `<button type="button" class="tchip${on ? " on" : ""}" data-id="${id}" style="--c:${color}"><span>${cname(id)}</span><i>${troops(id)}</i></button>`;
+  const fbOk = () => typeof db !== "undefined" && db && roomId;
+  const canTrade = () => !!roomId && (fbOk() || isSoloGame);   // solo games trade locally, no database needed
+
+  function note(msg, kind) {
+    const n = el(`<div class="tnote ${kind || ""}">${msg}</div>`); stack.appendChild(n);
+    const notes = stack.querySelectorAll(".tnote"); if (notes.length > 4) notes[0].remove();
+    setTimeout(() => { n.classList.add("out"); setTimeout(() => n.remove(), 320); }, 3800);
+  }
+
+  // ---------- shared ledger: accepted trades are applied on top of the server's ownership on EVERY client ----------
+  let ledger = [], rawOwners = null, tradeFx = [], prevGive = new Set(), prevGet = new Set();
+  const buildSwaps = (o) => [
+    ...o.give.map((id) => ({ id, from: o.from, to: o.to })),
+    ...o.get.map((id) => ({ id, from: o.to, to: o.from }))
+  ];
+  function merge(raw) {
+    const out = Object.assign({}, raw);
+    ledger.slice().sort((a, b) => a.at - b.at).forEach((e) => e.swaps.forEach((s) => {
+      if (s.dead) return;
+      if (out[s.id] === s.from) out[s.id] = s.to;   // still owned by the original owner -> trade applies
+      else s.dead = true;                          // captured meanwhile (or server already applied it) -> stop overriding
+    }));
+    return out;
+  }
+  // The server is the single source of truth for ownership - no client-side overlay any more.
+  window.TradeSync = { apply(s) { if (!s || !s.owners) return; rawOwners = Object.assign({}, s.owners); } };
+  function refresh(fx) {
+    if (!state || !state.owners || !rawOwners) return;
+    const before = Object.assign({}, state.owners);
+    state.owners = merge(rawOwners);
+    if (selected !== null && state.owners[selected] !== myId) selected = null;
+    if (fx) detectCaptures({ owners: before }, state);   // existing flash + shock-ring + sound
+    draw();
+  }
+  function addLedger(o, animate) {
+    if (ledger.some((e) => e.offerId === o.offerId)) return;
+    ledger.push({ offerId: o.offerId, at: o.at || Date.now(), swaps: buildSwaps(o) });
+    if (animate) addTradeFx(o);
+    refresh(animate);
+  }
+
+  // ---------- visuals: orbs swapping along an arc + rings on traded states ----------
+  function nearest(from, ids) {
+    const p = territoryPos(from); let best = null, bd = 1e9;
+    ids.forEach((i) => { const q = territoryPos(i), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd) { bd = d; best = i; } }); return best;
+  }
+  function addTradeFx(o) {
+    const pairs = [], n = Math.max(o.give.length, o.get.length);
+    for (let k = 0; k < n; k++) {
+      let a = o.give.length ? o.give[k % o.give.length] : null, b = o.get.length ? o.get[k % o.get.length] : null;
+      if (a === null) a = nearest(b, o.get.length ? ownedBy(o.from).filter((i) => !o.get.includes(i)) : []);
+      if (b === null) b = nearest(a, ownedBy(o.to).filter((i) => !o.give.includes(i)));
+      if (a === null || b === null || a === undefined || b === undefined) continue;
+      pairs.push({ a, b, two: o.give.length > 0 && o.get.length > 0 });
+    }
+    tradeFx.push({ start: performance.now(), pairs, ids: [...o.give, ...o.get], ca: pcolor(o.from), cb: pcolor(o.to) });
+  }
+  const bez = (t, p0, c, p1) => ({ x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * c.x + t * t * p1.x, y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * c.y + t * t * p1.y });
+  function orb(path, e, color) {
+    for (let k = 5; k >= 0; k--) {
+      const t = Math.max(0, e - k * 0.035), q = bez(t, path.A, path.C, path.B);
+      ctx.globalAlpha *= 1; ctx.save(); ctx.globalAlpha = (k === 0 ? 1 : 0.5 / (k + 1)) * ctx.globalAlpha;
+      ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(q.x, q.y, k === 0 ? 7 : 5 - k * 0.5, 0, 6.283); ctx.fill(); ctx.restore();
+    }
+  }
+  function drawTradeFx() {
+    if (!state || !state.countries) return;
+    const now = performance.now(), D = 1700;
+    tradeFx = tradeFx.filter((f) => now - f.start < D);
+    tradeFx.forEach((f) => {
+      const k = (now - f.start) / D, e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      ctx.save(); ctx.globalAlpha = Math.min(1, (1 - k) * 2);
+      f.pairs.forEach((p) => {
+        if (!state.countries[p.a] || !state.countries[p.b]) return;
+        const A = territoryPos(p.a), B = territoryPos(p.b), dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1, bend = Math.min(90, len * 0.28);
+        const C = { x: (A.x + B.x) / 2 - dy / len * bend, y: (A.y + B.y) / 2 + dx / len * bend }, path = { A, B, C };
+        ctx.save(); ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 2; ctx.setLineDash([6, 7]);
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.quadraticCurveTo(C.x, C.y, B.x, B.y); ctx.stroke(); ctx.restore();
+        orb(path, e, f.ca);                                              // giver's colour travels to the partner
+        if (p.two) orb({ A: B, B: A, C }, e, f.cb);                      // partner's colour travels back
+        const m = bez(0.5, A, C, B); ctx.save(); ctx.globalAlpha *= Math.sin(Math.min(1, k * 1.6) * Math.PI);
+        ctx.font = "700 22px Inter, Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff"; ctx.shadowColor = "#000"; ctx.shadowBlur = 8;
+        ctx.fillText(p.two ? "⇄" : "→", m.x, m.y); ctx.restore();
+      });
+      ctx.restore();
+      f.ids.forEach((id) => {                                            // expanding gold ring on every traded state
+        if (!state.countries[id]) return; const q = territoryPos(id);
+        ctx.save(); ctx.globalAlpha = 1 - k; ctx.strokeStyle = "#f2c96b"; ctx.lineWidth = 3; ctx.shadowColor = "#f2c96b"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.arc(q.x, q.y, territoryRadius(id) + 6 + k * 40, 0, 6.283); ctx.stroke(); ctx.restore();
+      });
+    });
+  }
+  function drawPreview() {                       // while composing: gold = you give, green = you get
+    if (panel.style.display !== "block" || !state || !state.countries) return;
+    const pulse = 4 + Math.sin(performance.now() / 220) * 2.5;
+    [[prevGive, "#f2c96b", "GIVE"], [prevGet, "#5fd48b", "GET"]].forEach(([set, col, label]) => set.forEach((id) => {
+      if (!state.countries[id]) return; const q = territoryPos(id), r = territoryRadius(id) + 8 + pulse;
+      ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.setLineDash([7, 5]); ctx.shadowColor = col; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = "700 10px Inter, Arial"; ctx.textAlign = "center"; ctx.fillStyle = col; ctx.fillText(label, q.x, q.y - r - 5); ctx.restore();
+    }));
+  }
+  const _draw = draw; draw = function () { _draw(); drawTradeFx(); drawPreview(); };
+
+  // ---------- trade status (atomic, so double-clicks / races can't apply a trade twice) ----------
+  function setStatus(o, status, reason) {
+    if (!fbOk()) { if (isSoloGame) onOffer({ ...o, status, reason }, false); return; }   // solo: settle locally
+    db.ref("trades/" + roomId + "/" + o.offerId).transaction((cur) => {
+      if (cur === null) return cur;                       // not cached yet: Firebase retries with the real value
+      if (cur.status !== "pending") return;               // already settled -> abort
+      cur.status = status; if (status === "accepted") cur.at = Date.now(); if (reason) cur.reason = reason; return cur;
+    });
+  }
+  function validate(o) {
+    if (o.give.some((i) => state.owners[i] !== o.from) || o.get.some((i) => state.owners[i] !== o.to)) return "The states changed hands - offer no longer valid.";
+    const a = ownedBy(o.from).length - o.give.length + o.get.length, b = ownedBy(o.to).length - o.get.length + o.give.length;
+    if (a < 1 || b < 1) return "A player must keep at least one state.";
+    return null;
+  }
+
+  // ---------- popup cards (never block the map) ----------
+  const cards = {}; let outgoing = null;
+  function closeCard(id) { const c = cards[id]; if (!c) return; delete cards[id]; c.classList.add("out"); setTimeout(() => c.remove(), 300); }
+  function showIncoming(o) {
+    if (cards[o.offerId] || !state || !state.countries) return;
+    const recv = o.give.length ? o.give.map((i) => chip(i, pcolor(o.from))).join("") : '<span class="none">nothing</span>';
+    const want = o.get.length ? o.get.map((i) => chip(i, pcolor(myId))).join("") : '<span class="none">nothing - it\'s a gift</span>';
+    const c = el(`<div class="tcard"><div class="th"><b style="color:${pcolor(o.from)}">${pname(o.from)}</b> sent you a trade offer</div>
+      <div class="tl">You receive</div><div class="tchips">${recv}</div>
+      <div class="tl">You give</div><div class="tchips">${want}</div>
+      <div class="tip">Troops and attack control go with each state.</div>
+      <div class="row"><button class="tno">Decline</button><button class="tyes">Accept</button></div><div class="bar"></div></div>`);
+    c.querySelector(".tno").onclick = () => { setStatus(o, "declined"); closeCard(o.offerId); };
+    c.querySelector(".tyes").onclick = () => {
+      const err = validate(o); closeCard(o.offerId);
+      if (err) { note("⚠️ " + err, "no"); setStatus(o, "invalid", err); } else { if (socket && roomId) socket.emit("tradeResponse", { roomId, offerId: o.offerId, accept: true }); }
+    };
+    cards[o.offerId] = c; stack.insertBefore(c, stack.firstChild); SFX.select();
+    setTimeout(() => closeCard(o.offerId), TTL);
+  }
+  function showOutgoing(o) {
+    const c = el(`<div class="tcard"><div class="th">⏳ Waiting for <b style="color:${pcolor(o.to)}">${pname(o.to)}</b>…</div>
+      <div class="tip">${summ(o)}</div><div class="row"><button class="tno">Cancel offer</button></div><div class="bar"></div></div>`);
+    c.querySelector(".tno").onclick = () => setStatus(o, "cancelled");
+    stack.insertBefore(c, stack.firstChild);
+    const t = setTimeout(() => setStatus(o, "expired"), TTL + 800);
+    outgoing = { offerId: o.offerId, card: c, timer: t };
+  }
+  function clearOutgoing(offerId) {
+    if (!outgoing || outgoing.offerId !== offerId) return;
+    clearTimeout(outgoing.timer); const c = outgoing.card; c.classList.add("out"); setTimeout(() => c.remove(), 300); outgoing = null;
+  }
+
+  // ---------- compose panel (docked, non-blocking, multi-select) ----------
+  let selGive = new Set(), selGet = new Set(), sig = "";
+  const closePanel = () => { panel.style.display = "none"; prevGive = new Set(); prevGet = new Set(); };
+  function partners() { return Object.keys(state.players).filter((id) => id !== myId && ownedBy(id).length); }
+  function renderChips() {
+    const pid = panel.querySelector("#trPartner").value, mine = ownedBy(myId), theirs = ownedBy(pid);
+    selGive = new Set([...selGive].filter((i) => mine.includes(i))); selGet = new Set([...selGet].filter((i) => theirs.includes(i)));
+    const fill = (id, ids, sel, col) => {
+      const box = panel.querySelector(id); box.innerHTML = ids.length ? ids.map((i) => chip(i, col, sel.has(i))).join("") : '<span class="none">No states</span>';
+      box.querySelectorAll(".tchip").forEach((b) => (b.onclick = () => { const i = +b.dataset.id; sel.has(i) ? sel.delete(i) : sel.add(i); renderChips(); }));
+    };
+    fill("#trGive", mine, selGive, pcolor(myId)); fill("#trGet", theirs, selGet, pcolor(pid));
+    panel.querySelector("#cGive").textContent = selGive.size + " selected"; panel.querySelector("#cGet").textContent = selGet.size + " selected";
+    prevGive = new Set(selGive); prevGet = new Set(selGet);
+    const g = selGive.size, r = selGet.size;
+    panel.querySelector("#trSum").textContent = !g && !r ? "Tap states to build your offer (any amount, 1 or more)." :
+      g && r ? `Swap ${g} ⇄ ${r}. Troops stay on each state.` : g ? `Gift: ${g} state${g > 1 ? "s" : ""}, nothing in return.` : `Request: ${r} state${r > 1 ? "s" : ""}, nothing offered.`;
+    panel.querySelector("#trSend").disabled = !g && !r;
+    sig = mine.join() + "|" + pid + theirs.join();
+  }
+  function openPanel() {
+    if (!state || !state.players) return;
+    if (panel.style.display === "block") { closePanel(); return; }
+    if (outgoing) { note("You already have an offer waiting for a reply.", "info"); return; }
+    if (!canTrade()) { note("Trading needs the online database connection.", "no"); return; }
+    const others = partners();
+    if (!others.length) { note("No one to trade with right now.", "info"); return; }
+    if (!ownedBy(myId).length) { note("You have no states to trade.", "info"); return; }
+    selGive = new Set(); selGet = new Set();
+    panel.innerHTML = `<div class="ph"><b>🤝 Trade States</b><button class="px" id="trX">✕</button></div>
+      <label>Trade with</label><select id="trPartner">${others.map((id) => `<option value="${id}">${pname(id)}${state.players[id].isBot ? " (bot)" : ""}</option>`).join("")}</select>
+      <label>You give <span id="cGive"></span></label><div class="tchips" id="trGive"></div>
+      <label>You get <span id="cGet"></span></label><div class="tchips" id="trGet"></div>
+      <div class="sum" id="trSum"></div>
+      <div class="row"><button class="tno" id="trCancel">Close</button><button id="trSend">Send Offer</button></div>`;
+    panel.style.display = "block";
+    panel.querySelector("#trPartner").onchange = () => { selGet = new Set(); renderChips(); };
+    panel.querySelector("#trX").onclick = closePanel; panel.querySelector("#trCancel").onclick = closePanel;
+    panel.querySelector("#trSend").onclick = () => {
+      const to = panel.querySelector("#trPartner").value, o = { give: [...selGive], get: [...selGet], from: myId, to };
+      const a = ownedBy(myId).length - o.give.length + o.get.length, b = ownedBy(to).length - o.get.length + o.give.length;
+      if (a < 1 || b < 1) { note("⚠️ Each player must keep at least one state.", "no"); return; }
+      SFX.select(); closePanel(); sendOffer(to, o.give, o.get);
+    };
+    renderChips();
+  }
+
+  // ---------- sending ----------
+  const botValue = (ids) => ids.reduce((s, i) => s + 10 + troops(i), 0);
+  function sendOffer(to, give, get) {
+    const offerId = myId + "_" + Date.now(), data = { offerId, from: myId, to, give, get, status: "pending", ts: Date.now() };
+    if (fbOk() && !isSoloGame) db.ref("trades/" + roomId + "/" + offerId).set(data).catch(() => note("Trade blocked - add the \"trades\" Firebase rule.", "no"));
+    if (socket && roomId) socket.emit("tradeOffer", { roomId, offerId, from: myId, to, give, get });   // for servers that handle trades natively
+    const o = norm(data); showOutgoing(o);
+    if (state.players[to] && state.players[to].isBot) setTimeout(() => {   // bots can't click - the offering client answers for them
+      const need = { easy: 0.7, normal: 0.9, hard: 1.15 }[botDifficulty] || 0.9;
+      const ok = !validate(o) && (!o.get.length || botValue(o.give) >= botValue(o.get) * need) && (o.give.length || !o.get.length);
+      if (ok) { if (socket && roomId) socket.emit("tradeResponse", { roomId, offerId: o.offerId, accept: true }); }
+      else setStatus(o, "declined");
+    }, 1500 + Math.random() * 1800);
+  }
+
+  // ---------- receiving / status changes ----------
+  const handled = {}; let tRef = null, tReady = false, tRoom = null;
+  function onOffer(raw, initial) {
+    if (!raw || !raw.offerId) return; const o = norm(raw), key = o.offerId + ":" + o.status;
+    if (handled[key]) return; handled[key] = 1;
+    if (o.status === "pending") { if (!initial && o.to === myId) showIncoming(o); return; }
+    if (o.status === "accepted") return;   // accepted trades are now confirmed by the server ("tradeResult")
+    closeCard(o.offerId); clearOutgoing(o.offerId);
+    if (initial) return;
+    const mineOut = o.from === myId, mineIn = o.to === myId;
+    if (o.status === "declined" && mineOut) note(`❌ <b>${pname(o.to)}</b> declined your trade.`, "no");
+    else if (o.status === "expired" && mineOut) note(`⌛ ${pname(o.to)} didn't reply - offer expired.`, "");
+    else if (o.status === "cancelled" && mineIn) note(`${pname(o.from)} withdrew their offer.`, "");
+    else if (o.status === "invalid" && mineOut) note(`⚠️ Trade failed: ${esc(o.reason || "no longer valid")}`, "no");
+  }
+  function reset() {
+    if (tRef) { tRef.off(); tRef = null; }
+    tReady = false; ledger = []; tradeFx = []; Object.keys(handled).forEach((k) => delete handled[k]);
+    Object.keys(cards).forEach((id) => { cards[id].remove(); delete cards[id]; });
+    if (outgoing) { clearTimeout(outgoing.timer); outgoing.card.remove(); outgoing = null; }
+    stack.querySelectorAll(".tnote").forEach((n) => n.remove()); closePanel();
+    rawOwners = state && state.owners ? Object.assign({}, state.owners) : null;
+  }
+  function attach() {
+    reset();
+    if (!fbOk() || isSoloGame) return;
+    tRef = db.ref("trades/" + roomId);
+    tRef.on("child_added", (s) => onOffer(s.val(), !tReady));
+    tRef.on("child_changed", (s) => onOffer(s.val(), false));
+    setTimeout(() => { tReady = true; refresh(false); }, 1500);
+  }
+  btn.onclick = openPanel;
+  if (socket) socket.on("tradeResult", (r) => {
+    if (!r) return;
+    closeCard(r.offerId); clearOutgoing(r.offerId);
+    if (!r.accepted) { if (r.reason) note("⚠️ " + esc(r.reason), "no"); return; }
+    // Server already swapped ownership (and sent the new gameState). Mark Firebase, animate and notify.
+    const o = norm({ offerId: r.offerId, from: r.from, to: r.to, give: r.give, get: r.get });
+    if (fbOk()) db.ref("trades/" + roomId + "/" + o.offerId).transaction((cur) => { if (cur && cur.status === "pending") { cur.status = "accepted"; return cur; } });
+    handled[o.offerId + ":accepted"] = 1;
+    addTradeFx(o);
+    if (o.from === myId) note(`✅ <b>${pname(o.to)}</b> accepted your trade<br>${summ(o)}`, "ok");
+    else if (o.to === myId) note(`🤝 Trade completed with <b>${pname(o.from)}</b><br>${summ(o)}`, "ok");
+    else note(`🤝 ${pname(o.from)} ⇄ ${pname(o.to)} traded ${o.give.length + o.get.length} state(s)`, "");
+    SFX.capture(); draw();
+  });
+  setInterval(() => {
+    const inGame = gameDiv.style.display === "flex" && !surrendered && roomId;
+    btn.style.display = inGame ? "block" : "none";
+    if (!inGame && panel.style.display === "block") closePanel();
+    if (roomId !== tRoom) { tRoom = roomId; attach(); }
+    if (panel.style.display === "block" && state && state.owners) {    // keep chips fresh if states change hands mid-compose
+      const pid = panel.querySelector("#trPartner").value;
+      if (sig !== ownedBy(myId).join() + "|" + pid + ownedBy(pid).join()) renderChips();
+    }
+  }, 400);
+})();
+</script>
+</body>
+</html>
